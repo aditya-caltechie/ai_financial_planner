@@ -4,8 +4,6 @@
 
 ![Course Image](assets/alex.png)
 
-_If you're looking at this in Cursor, please right click on the filename in the Explorer on the left, and select "Open preview", to view it in formatted glory._
-
 ### Welcome to The Capstone Project for Week 3 and Week 4!
 
 #### The directories:
@@ -30,9 +28,3 @@ _If you're looking at this in Cursor, please right click on the filename in the 
 - On Week 4 Day 2, we will do 6_agents
 - On Week 4 Day 3, we will do 7_frontend
 - On Week 4 Day 4, we will do 8_enterprise
-
-#### Keep in mind
-
-- Please submit your community_contributions, including links to your repos, in the production repo community_contributions folder
-- Regularly do a git pull to get the latest code
-- Reach out in Udemy or email (ed@edwarddonner.com) if I can help! This is a gigantic project and I am here to help you deliver it!
