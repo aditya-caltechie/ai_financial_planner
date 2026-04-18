@@ -1,18 +1,38 @@
-# Alex data pipeline: research → ingest → vectors (Guides 2–4)
+# Alex data pipeline: research → ingest → vectors 
 
-This document ties together **SageMaker embeddings**, the **ingest Lambda**, **S3 Vectors**, and the **Researcher (App Runner)** so you can follow the system end-to-end in the order the course expects.
+This document ties together **SageMaker embeddings**, the **ingest Lambda**, **S3 Vectors**, and the **Researcher (App Runner)** so you can follow the system end-to-end in the order the course expects. Read **Overall flow** first for the story in plain English; **section 1** is the diagram; **sections 13–14** at the end are the verbose step-by-step reference (deploy + runtime).
+
+## Overall flow (what is going on?)
+
+Six-step mental model of the **automated** path (when the scheduler is on). If the scheduler is off, you still follow steps 3–6 by calling **`POST /research`** yourself or from `test_research.py`.
+
+1. **Scheduler (about every 2 hours)** — Optional **EventBridge** schedule (see `terraform/4_researcher` when `scheduler_enabled = true`) wakes up on a timer so research can run without you.
+
+2. **Scheduler triggers a Lambda** — **`alex-researcher-scheduler`** runs **`backend/scheduler/lambda_function.py`**. EventBridge invokes this small function instead of calling App Runner directly (so a long-running research job is not limited by a short EventBridge HTTP timeout).
+
+3. **Lambda starts the Researcher on App Runner** — That Lambda **POSTs** to your **App Runner** URL **`/research`**, which runs **`backend/researcher/server.py`**: the investment **Researcher agent** starts (with an optional **topic** in the JSON body, or the agent picks one).
+
+4. **Researcher uses a frontier model in Bedrock** — The agent uses **Amazon Bedrock** via LiteLLM (`MODEL` / region in `server.py`), and can use **Playwright MCP** to browse the web for current information before writing conclusions.
+
+5. **Researcher calls Ingest** — When it is time to save to the knowledge base, the agent uses the **`ingest_financial_document`** tool in **`tools.py`**, which **POSTs** to your **API Gateway** **`/ingest`** URL with the **API key** (same contract as a direct `curl` to ingest).
+
+6. **Ingest creates embeddings and stores vectors** — The **`alex-ingest`** Lambda (**`backend/ingest/ingest_s3vectors.py`**) calls **SageMaker** for embeddings, then **S3 Vectors** (`put_vectors`) so the text is searchable later (e.g. with **`test_search_s3vectors.py`**).
 
 ---
 
-## 1. Course reference diagram (high-level)
+## 1. Reference diagram (high-level)
 
-The instructor diagram you shared maps cleanly onto this repo: **scheduler (optional) → researcher (Bedrock) → ingest API (Lambda + SageMaker) ↔ S3 Vectors**.
+The diagram matches this repo: **scheduler (optional) → researcher (Bedrock) → ingest API (Lambda + SageMaker) ↔ S3 Vectors**.
 
 <img src="assets/data-ingest-architecture-reference.png" alt="Data ingest architecture: Scheduler Lambda, App Runner Researcher with Bedrock, Ingest Lambda with SageMaker, S3 Vectors" width="480" style="max-width: 100%; height: auto;" />
+
+Verbose **one-time** and **runtime** step lists live at the end in **sections 13–14** (reference).
 
 ---
 
 ## 2. What to deploy first (strict sequence)
+
+The numbered **one-time steps** are in **section 13**; the table below is the same order in compact form.
 
 Think of **three independent Terraform stacks** plus **two application folders** that depend on them.
 
@@ -101,6 +121,8 @@ Quick mental model: optional schedule → researcher → secured ingest API → 
 ---
 
 ## 4. Detailed vertical flow (numbered)
+
+Same runtime path as **section 14**, shown here as compact arrows.
 
 ```
 1) Human or test script
@@ -340,6 +362,52 @@ flowchart TB
 3. [3_ingest.md](../guides/3_ingest.md)  
 4. [4_researcher.md](../guides/4_researcher.md)  
 5. [5_database.md](../guides/5_database.md) (next phase: Aurora; different data plane from this pipeline)
+
+---
+
+## 13. Reference: one-time steps (build, deploy, configure)
+
+Do these in order so every runtime hop has ARNs, keys, and models in place. (Same story as **section 2** in more detail.)
+
+1. **Guide 1 — Permissions**  
+   Complete [1_permissions.md](../guides/1_permissions.md) so your IAM user can use SageMaker, Lambda, S3 / S3 Vectors, API Gateway, Bedrock, ECR, and App Runner as required by later guides.
+
+2. **Guide 2 — Embedding endpoint** (`terraform/2_sagemaker`)  
+   Copy `terraform.tfvars.example` → `terraform.tfvars`, run `terraform init` / `terraform apply`. Record the endpoint name (default **`alex-embedding-endpoint`**) in root **`.env`** as **`SAGEMAKER_ENDPOINT`**.
+
+3. **S3 Vectors index (outside default Terraform)**  
+   Ensure a vector **index** exists that matches code: **`INDEX_NAME`** default **`financial-research`**, dimension **384**, distance **cosine** (see `backend/ingest/ingest_s3vectors.py`). Terraform in **`terraform/3_ingestion`** creates the **bucket** `alex-vectors-<account_id>`; the index is still created in AWS (console or CLI) unless you add automation elsewhere.
+
+4. **Guide 3 — Ingest API + Lambda** (`backend/ingest`, `terraform/3_ingestion`)  
+   `cd backend/ingest && uv run package.py` → produces **`lambda_function.zip`**. In **`terraform/3_ingestion`**, set **`sagemaker_endpoint_name`** from step 2, then `terraform apply`. Copy **`VECTOR_BUCKET`**, **`ALEX_API_ENDPOINT`**, **`ALEX_API_KEY`** from `terraform output` into root **`.env`**.
+
+5. **Guide 4 — Researcher on App Runner** (`backend/researcher`, `terraform/4_researcher`)  
+   Put **`OPENAI_API_KEY`**, **`ALEX_API_ENDPOINT`**, **`ALEX_API_KEY`** in **`.env`** and the same ingest URL/key into **`terraform/4_researcher/terraform.tfvars`**. Follow [4_researcher.md](../guides/4_researcher.md): apply ECR + IAM first if you use `-target`, then **`uv run deploy.py`** from **`backend/researcher`**, then full **`terraform apply`** for App Runner. Edit **`REGION`** and **`MODEL`** in **`backend/researcher/server.py`** for Bedrock access you actually have.
+
+6. **Optional — Scheduled research**  
+   In **`terraform/4_researcher/terraform.tfvars`**, set **`scheduler_enabled = true`**. Ensure **`backend/scheduler/lambda_function.zip`** exists (Terraform references it when the scheduler is enabled), then **`terraform apply`**. EventBridge invokes **`alex-researcher-scheduler`**, which calls App Runner **`POST /research`**.
+
+---
+
+## 14. Reference: runtime steps (research → stored vector)
+
+Each step is one logical hand-off for a **single** knowledge-base write (the path your code implements). (Same story as **section 4** in prose form.)
+
+1. **Trigger** — A client calls **`POST https://<app-runner-service>/research`** with optional JSON **`{"topic": "..."}`**, or the optional **scheduler Lambda** (`backend/scheduler/lambda_function.py`) POSTs **`/research`** with **`{}`** so the agent picks a topic.
+
+2. **Research service** — **`backend/researcher/server.py`** runs **`run_research_agent`**: sets **`AWS_REGION_NAME`** (and related) for LiteLLM, builds **`LitellmModel(MODEL)`** → **Amazon Bedrock**, attaches **Playwright MCP** (`mcp_servers.py`) and the **`ingest_financial_document`** tool from **`tools.py`**.
+
+3. **Agent execution** — **OpenAI Agents** `Runner.run` (max turns per `server.py`) lets the model use MCP browsing, then call **`ingest_financial_document(topic, analysis)`** when it decides to persist analysis text.
+
+4. **Authenticated HTTP ingest** — **`ingest_financial_document`** POSTs to **`ALEX_API_ENDPOINT`** with **`x-api-key: ALEX_API_KEY`** and body **`{ "text": "<analysis>", "metadata": { "topic", "timestamp", ... } }`** (retries in **`tools.py`** handle cold starts).
+
+5. **API Gateway → Lambda** — API Gateway validates the key and invokes **`alex-ingest`** with **`ingest_s3vectors.lambda_handler`**.
+
+6. **Embedding** — Lambda **`get_embedding`** calls **SageMaker** **`invoke_endpoint`** using env **`SAGEMAKER_ENDPOINT`**, parses the nested JSON response into a single vector.
+
+7. **Vector store** — Lambda calls **`s3vectors.put_vectors`** on **`VECTOR_BUCKET`** / **`INDEX_NAME`**, storing **`float32`** embedding plus **metadata** (including full **`text`** for later retrieval).
+
+8. **Search (separate operation)** — Query text is embedded with the **same** SageMaker endpoint, then **`s3vectors.query_vectors`** runs against the same bucket/index (e.g. **`backend/ingest/test_search_s3vectors.py`**). The default **`terraform/3_ingestion`** API exposes **`POST /ingest`** only, not search.
 
 ---
 
