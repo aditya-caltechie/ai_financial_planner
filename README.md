@@ -1,4 +1,4 @@
-# Alex — Agentic Learning Equities explainer
+# Alex — Agentic Learning Equities eXplainer
 
 **Alex** is a multi-agent, production-style SaaS financial planning platform: portfolio intelligence, AI-generated research, embeddings-backed knowledge, and a Next.js + Clerk frontend. It is the **Week 3–4 capstone** for the Udemy course **AI in Production** (Ed Donner).
 
