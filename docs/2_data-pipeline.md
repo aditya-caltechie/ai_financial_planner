@@ -1,6 +1,6 @@
 # Alex data pipeline: research → ingest → vectors 
 
-This document ties together **SageMaker embeddings**, the **ingest Lambda**, **S3 Vectors**, and the **Researcher (App Runner)** so you can follow the system end-to-end in the order the course expects. Read **Overall flow** first for the story in plain English; **section 1** is the diagram; **sections 13–14** at the end are the verbose step-by-step reference (deploy + runtime).
+This document ties together **SageMaker embeddings**, the **ingest Lambda**, **S3 Vectors**, and the **Researcher (App Runner)** so you can follow the system end-to-end in the order the course expects. Read **Overall flow** first for the story in plain English; **section 1** is the diagram; **sections 13–14** at the end are the verbose step-by-step reference (deploy + runtime); **section 15** shows **OpenAI trace** screenshots for the research agent (what is actually running in code).
 
 ## Overall flow (what is going on?)
 
@@ -25,6 +25,27 @@ Six-step mental model of the **automated** path (when the scheduler is on). If t
 The diagram matches this repo: **scheduler (optional) → researcher (Bedrock) → ingest API (Lambda + SageMaker) ↔ S3 Vectors**.
 
 <img src="assets/data-ingest-architecture-reference.png" alt="Data ingest architecture: Scheduler Lambda, App Runner Researcher with Bedrock, Ingest Lambda with SageMaker, S3 Vectors" width="480" style="max-width: 100%; height: auto;" />
+
+The same pipeline as in [Guide 4](../guides/4_researcher.md) (Mermaid — Bedrock model/region in the diagram are examples; set **`MODEL`** / **`REGION`** in `backend/researcher/server.py` to match your access):
+
+```mermaid
+graph LR
+    User[User] -->|Research Request| AR[App Runner<br/>Researcher]
+    Schedule[EventBridge<br/>Every 2hrs] -->|Trigger| SchedLambda[Lambda<br/>Scheduler]
+    SchedLambda -->|Auto Research| AR
+    AR -->|Generate Analysis| Bedrock[AWS Bedrock<br/>OSS 120B<br/>us-west-2]
+    AR -->|Store Research| API[API Gateway]
+    API -->|Process| Lambda[Lambda<br/>Ingest]
+    Lambda -->|Embeddings| SM[SageMaker<br/>all-MiniLM-L6-v2]
+    Lambda -->|Store| S3V[(S3 Vectors<br/>90% Cheaper!)]
+    User -->|Search| S3V
+
+    style AR fill:#FF9900
+    style Bedrock fill:#FF9900
+    style S3V fill:#90EE90
+    style Schedule fill:#9333EA
+    style SchedLambda fill:#FF9900
+```
 
 Verbose **one-time** and **runtime** step lists live at the end in **sections 13–14** (reference).
 
@@ -408,6 +429,38 @@ Each step is one logical hand-off for a **single** knowledge-base write (the pat
 7. **Vector store** — Lambda calls **`s3vectors.put_vectors`** on **`VECTOR_BUCKET`** / **`INDEX_NAME`**, storing **`float32`** embedding plus **metadata** (including full **`text`** for later retrieval).
 
 8. **Search (separate operation)** — Query text is embedded with the **same** SageMaker endpoint, then **`s3vectors.query_vectors`** runs against the same bucket/index (e.g. **`backend/ingest/test_search_s3vectors.py`**). The default **`terraform/3_ingestion`** API exposes **`POST /ingest`** only, not search.
+
+---
+
+## 15. Observability: what “Research” looks like in traces
+
+The Researcher uses the **OpenAI Agents SDK** with `with trace("Researcher"):` in **`backend/researcher/server.py`**. When **`OPENAI_API_KEY`** is set (locally and in App Runner via Terraform), those runs show up in the **OpenAI Platform → Logs → Traces** UI. From a **developer** perspective, each trace is a single **`Runner.run`** session: alternating **LLM generations** (Bedrock via LiteLLM), **MCP tool calls** (Playwright: `browser_navigate`, `browser_snapshot`, …), and the native **`ingest_financial_document`** function tool defined in **`backend/researcher/tools.py`**.
+
+### 15.1 Many runs at a glance (latency and tool count)
+
+Each row is one completed research request. **Flow** matches the agent name in code (**`Alex Investment Researcher`** in `server.py`). **Tools** counts MCP steps plus the ingest tool; **Execution time** is wall-clock for the whole `Runner.run` (browser I/O and Bedrock latency dominate). A row with many more tools or much longer duration usually means extra browse/snapshot cycles or a slow page load, not a different code path.
+
+<img src="assets/observability-traces-list.png" alt="OpenAI Traces list: Alex Investment Researcher runs with tool counts and execution times" width="720" style="max-width: 100%; height: auto;" />
+
+### 15.2 A **Generation** span (model decides the next tool)
+
+Inside one trace, **Generation** nodes are Bedrock completions: the model reads the system prompt from **`context.py`**, the user topic, and prior tool outputs, then emits either text or a **tool call** (JSON with `tool_calls`, e.g. `browser_navigate`). Metadata in the UI (model id, tokens, duration) maps to that single LiteLLM/Bedrock request. This is the “think / plan” step between MCP **`List MCP Tools`** and the next concrete action.
+
+<img src="assets/observability-trace-generation-span.png" alt="Trace detail: Generation span with Bedrock model, tokens, and tool_calls to browser_navigate" width="720" style="max-width: 100%; height: auto;" />
+
+### 15.3 **browser_navigate** (Playwright MCP)
+
+This span is **not** your Python calling Playwright directly; it is the **Playwright MCP server** (`mcp_servers.py`, `npx @playwright/mcp`) executing **`browser_navigate`** with a URL the model chose (here Yahoo Finance for **TSLA**). Long duration (often many seconds) is normal: real headless Chrome loads the page, runs scripts, and returns a snapshot handle. Errors in this span usually mean network/DNS, blocked automation, or a bad URL—worth correlating with App Runner logs.
+
+<img src="assets/observability-trace-browser-navigate.png" alt="Trace detail: browser_navigate span with URL finance.yahoo.com quote TSLA and duration" width="720" style="max-width: 100%; height: auto;" />
+
+### 15.4 **ingest_financial_document** (bridge into Guide 3)
+
+This span is the **`@function_tool`** in **`tools.py`**: arguments **`topic`** and **`analysis`** are exactly what the model filled in; the implementation POSTs to **`ALEX_API_ENDPOINT`** with **`x-api-key`**. A successful output shows **`success: true`** and a **`document_id`** UUID—that id is the vector **key** written by **`ingest_s3vectors.lambda_handler`** in S3 Vectors. Duration here includes **API Gateway + Lambda + SageMaker embedding + put_vectors** (and retries from **`tenacity`** in `tools.py` on cold start).
+
+<img src="assets/observability-trace-ingest-financial-document.png" alt="Trace detail: ingest_financial_document with topic, analysis markdown, and success document_id" width="720" style="max-width: 100%; height: auto;" />
+
+**How this ties to the rest of the doc:** sections **6**, **14**, and the **Overall flow** describe the same pipeline; traces are the **time-ordered proof** of which tools ran and how long each leg took. They do **not** replace CloudWatch for the ingest Lambda or App Runner container logs when debugging 5xx or IAM errors on the AWS side.
 
 ---
 
