@@ -2,7 +2,7 @@
 
 **Alex** is a multi-agent, production-style SaaS financial planning platform: portfolio intelligence, AI-generated research, embeddings-backed knowledge, and a Next.js + Clerk frontend. It is the **Week 3–4 capstone** for the Udemy course **AI in Production** (Ed Donner).
 
-![Course image](assets/alex.png)
+<img src="docs/assets/alex.png" alt="Alex — course capstone" width="420" style="max-width: 100%; height: auto;" />
 
 ## Summary and purpose
 
