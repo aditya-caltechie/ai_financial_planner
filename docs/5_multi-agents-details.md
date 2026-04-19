@@ -20,6 +20,150 @@ These meet at **S3 Vectors**: Researcher continuously populates it; Reporter opt
 
 ---
 
+## Architecture Overview (Conceptual, from `guides/agent_architecture.md`)
+
+This is the “how it’s supposed to work” view. The sections below then map it to the **actual code + AWS wiring**.
+
+```mermaid
+graph TB
+    User[User Request] -->|Portfolio Analysis| Planner[Financial Planner<br/>Orchestrator Agent]
+    
+    Planner -->|Check Instruments| Tagger[InstrumentTagger<br/>Agent]
+    Tagger -->|Classify Assets| DB[(Database)]
+    
+    Planner -->|Generate Analysis| Reporter[Report Writer<br/>Agent]
+    Reporter -->|Markdown Reports| DB
+    
+    Planner -->|Create Visualizations| Charter[Chart Maker<br/>Agent]
+    Charter -->|JSON Chart Data| DB
+    
+    Planner -->|Project Future| Retirement[Retirement Specialist<br/>Agent]
+    Retirement -->|Income Projections| DB
+    
+    DB -->|Results| Response[Complete Analysis<br/>Report]
+    
+    Planner -->|Retrieve Context| Vectors[(S3 Vectors<br/>Knowledge Base)]
+    
+    Schedule[EventBridge<br/>Every 2 Hours] -->|Trigger| Researcher[Researcher<br/>Agent]
+    Researcher -->|Store Insights| Vectors
+    Researcher -->|Web Research| Browser[Web Browser<br/>MCP Server]
+```
+
+### Communication flow (Conceptual)
+
+```mermaid
+sequenceDiagram
+    participant S as EventBridge Schedule
+    participant Re as Researcher
+    participant V as S3 Vectors
+    participant U as User
+    participant P as Financial Planner
+    participant T as InstrumentTagger
+    participant Rw as Report Writer
+    participant C as Chart Maker
+    participant Rt as Retirement Specialist
+    participant DB as Database
+    
+    Note over S,Re: Independent Research Flow (Every 2 Hours)
+    S->>Re: Trigger scheduled research
+    Re->>V: Store market insights
+    
+    Note over U,DB: User-Triggered Analysis Flow
+    U->>P: Request Portfolio Analysis
+    P->>DB: Check for missing instrument data
+    
+    alt Missing Instrument Data
+        P->>T: Tag unknown instruments
+        T->>DB: Store classifications
+    end
+    
+    P->>V: Retrieve relevant research
+    
+    par Parallel Analysis
+        P->>Rw: Generate portfolio report
+        Rw->>DB: Save analysis
+    and
+        P->>C: Create visualizations
+        C->>DB: Save chart data
+    and
+        P->>Rt: Calculate projections
+        Rt->>DB: Save retirement analysis
+    end
+    
+    P->>DB: Compile all results
+    P->>U: Return complete analysis
+```
+
+---
+
+## Capability Matrix (updated to match code)
+
+| Agent | Runtime | Trigger | “Agent feature” emphasis | Reads | Writes |
+|------|---------|---------|---------------------------|-------|--------|
+| Planner | Lambda | SQS | Tools (invoke other Lambdas) | Aurora | jobs.status |
+| Tagger | Lambda | Lambda invoke | Structured outputs | Aurora | instruments |
+| Reporter | Lambda | Lambda invoke | Tools (RAG via S3 Vectors) | Aurora, SageMaker, S3 Vectors | jobs.report_payload |
+| Charter | Lambda | Lambda invoke | Constrained JSON output + parsing | Aurora | jobs.charts_payload |
+| Retirement | Lambda | Lambda invoke | Deterministic sim + LLM narrative | Aurora | jobs.retirement_payload |
+| Researcher | App Runner | EventBridge / HTTP | MCP + tool | Web, (optional) | S3 Vectors (via ingest) |
+
+---
+
+## Agent Responsibilities (Guide + Reality)
+
+### Planner (Financial Planner / Orchestrator) — `backend/planner`
+- **Trigger**: SQS event (`Records[0].body` is job_id)
+- **Pre-processing (non-LLM)**:
+  - detect missing allocations and invoke Tagger
+  - update prices via Polygon into `instruments.current_price`
+- **Agent behavior**: an LLM with **3 tools** that invoke other Lambdas
+- **Writes**: job `status` (and failure `error_message`)
+
+### Tagger (InstrumentTagger) — `backend/tagger`
+- **Input**: `{"instruments":[{"symbol","name"},...]}`
+- **Agent feature**: **structured outputs** (Pydantic schema + validators)
+- **Writes**: upserts `instruments.*allocation_*` JSONB and basic metadata
+
+### Reporter (Report Writer) — `backend/reporter`
+- **Input**: usually `{"job_id": ...}` (loads portfolio/user from Aurora if missing)
+- **Agent feature**: tool calling for retrieval (`get_market_insights`)
+- **Retrieval path**: SageMaker embed -> S3 Vectors query -> short snippets
+- **Writes**: `jobs.report_payload = {"content": "...markdown...", ...}`
+- **Extra reliability**: “judge” step; if score too low, emits a safe fallback
+
+### Charter (Chart Maker) — `backend/charter`
+- **Input**: usually `{"job_id": ...}` (loads portfolio from Aurora if missing)
+- **Agent feature**: “JSON-only” constrained output (then parsed/normalized)
+- **Writes**: `jobs.charts_payload` (dict keyed by chart key)
+
+### Retirement (Retirement Specialist) — `backend/retirement`
+- **Input**: usually `{"job_id": ...}` (loads portfolio from Aurora if missing)
+- **Deterministic core**: Monte Carlo simulation + projections are computed before LLM
+- **Writes**: `jobs.retirement_payload = {"analysis": "...markdown...", ...}`
+
+### Researcher (Independent Agent) — `backend/researcher`
+- **Runs on**: FastAPI service (App Runner), not part of Part 6 Lambdas
+- **Agent features**: **MCP Playwright** + tool (`ingest_financial_document`)
+- **Writes**: S3 Vectors (indirectly via the ingest pipeline)
+
+---
+
+## Guide vs Code (Important differences)
+
+- **S3 Vectors retrieval**
+  - **Guide view**: Planner “retrieves context” from S3 Vectors.
+  - **Code truth**: Planner does *not* query S3 Vectors directly; **Reporter** queries S3 Vectors via `get_market_insights()` (SageMaker embedding → S3 Vectors search).
+
+- **Model names in docs**
+  - **Guide view** mentions “Claude Sonnet/Claude 4”.
+  - **Code + Terraform** are configured to use Bedrock via LiteLLM with `BEDROCK_MODEL_ID` (commonly **Nova Pro**) and `BEDROCK_REGION`. The actual model is an environment variable, not hardcoded in the Lambdas.
+
+- **Tagger price vs real price**
+  - **Tagger** includes a `current_price` in structured output (approx).
+  - **Planner pre-step** overwrites/updates `instruments.current_price` using **Polygon** (more “real” prices).
+
+---
+
 ## End‑to‑End AWS Flow (Portfolio Analysis)
 
 ### High-level ASCII flow
