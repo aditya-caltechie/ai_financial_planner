@@ -52,6 +52,21 @@ Aurora Serverless v2 (Data API) is the single shared state store:
   users, accounts, positions, instruments, jobs
 ```
 
+---
+
+## Terraform (Parts 5–6)
+
+### Part 5: Database (`terraform/5_database`)
+- Provisions **Aurora Serverless v2 Postgres** with **Data API enabled** + **Secrets Manager** secret (credentials)
+- Outputs the **cluster ARN** + **secret ARN** you must copy into root `.env` as:
+  - `AURORA_CLUSTER_ARN=...`
+  - `AURORA_SECRET_ARN=...`
+- After apply, you initialize schema/data from `backend/database`:
+  - `uv run test_data_api.py`
+  - `uv run run_migrations.py`
+  - `uv run seed_data.py` (and optionally `uv run verify_database.py`)
+
+### Part 6: Agents (`terraform/6_agents`)
 ### What Terraform actually provisions for Part 6 (`terraform/6_agents`)
 
 ```
@@ -123,7 +138,7 @@ Used in:
 
 ## Agent-by-Agent Deep Dive
 
-## Planner (Orchestrator) — `backend/planner`
+## 1. Planner (Orchestrator) — `backend/planner`
 
 ### Responsibility
 - Owns the **workflow** and **coordination**, not the heavy analysis content.
@@ -175,7 +190,7 @@ run_orchestrator(job_id):
 
 ---
 
-## Tagger (InstrumentTagger) — `backend/tagger`
+## 2. Tagger (InstrumentTagger) — `backend/tagger`
 
 ### Responsibility
 Ensures each instrument has **allocation metadata** needed by downstream agents:
@@ -229,7 +244,7 @@ Why this matters:
 
 ---
 
-## Reporter (Report Writer) — `backend/reporter`
+## 3. Reporter (Report Writer) — `backend/reporter`
 
 ### Responsibility
 Produce a **markdown report** for the portfolio, enriched with optional “market context” from **S3 Vectors**.
@@ -289,7 +304,7 @@ This is not “agent memory”; it’s **quality gating** after generation.
 
 ---
 
-## Charter (Chart Maker) — `backend/charter`
+## 4. Charter (Chart Maker) — `backend/charter`
 
 ### Responsibility
 Generate 4–6 charts in a Recharts-friendly JSON format and store them into `jobs.charts_payload`.
@@ -339,7 +354,7 @@ db.jobs.update_charts(job_id, charts_payload)
 
 ---
 
-## Retirement (Retirement Specialist) — `backend/retirement`
+## 5. Retirement (Retirement Specialist) — `backend/retirement`
 
 ### Responsibility
 Generate retirement readiness analysis, using **local simulation** (Monte Carlo) plus LLM explanation.
@@ -382,7 +397,7 @@ Finally it persists outside the agent:
 
 ---
 
-## Researcher (Autonomous Knowledge Builder) — `backend/researcher`
+## 6. Researcher (Autonomous Knowledge Builder) — `backend/researcher` - from week3
 
 ### Responsibility
 Browse the web, synthesize an “investment research” writeup, and ingest it into the knowledge base.
@@ -456,6 +471,16 @@ instruments  (reference data + allocations + current_price)
 jobs         (async analysis tracking + agent outputs)
 ```
 
+### Minimal schema diagram (what matters)
+
+```mermaid
+erDiagram
+  users ||--o{ accounts : owns
+  users ||--o{ jobs : requests
+  accounts ||--o{ positions : contains
+  positions }o--|| instruments : references
+```
+
 ### The jobs table is the agent output contract
 Each agent writes to its own JSONB column:
 
@@ -472,6 +497,32 @@ That design is a big production simplifier:
 
 ### Data API client boundary
 Lambdas use **Aurora Data API** (HTTP) via a wrapper (`DataAPIClient`), which avoids VPC connection pooling complexity.
+
+### DB write flow (short, end-to-end)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant API as API / Frontend
+  participant DB as Aurora (Data API)
+  participant SQS as SQS
+  participant P as Planner (Lambda)
+  participant R as Reporter
+  participant C as Charter
+  participant Ret as Retirement
+
+  API->>DB: INSERT jobs (status="queued")
+  API->>SQS: send job_id
+  SQS->>P: trigger with job_id
+  P->>DB: UPDATE jobs.status="running"
+  P->>R: invoke(job_id)
+  R->>DB: UPDATE jobs.report_payload
+  P->>C: invoke(job_id)
+  C->>DB: UPDATE jobs.charts_payload
+  P->>Ret: invoke(job_id)
+  Ret->>DB: UPDATE jobs.retirement_payload
+  P->>DB: UPDATE jobs.status="completed" (or error_message on failure)
+```
 
 ---
 
