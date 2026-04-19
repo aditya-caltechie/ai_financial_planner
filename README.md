@@ -131,6 +131,11 @@ There is no single “deploy everything” button: you apply **Terraform per dir
 - **Week 4 Day 3** — [7_frontend](guides/7_frontend.md)
 - **Week 4 Day 4** — [8_enterprise](guides/8_enterprise.md)
 
+**NOTE**: 
+1. Read all [docs](docs) in sequence for understanding. 
+2. Follow [guides](guides) for AWS infra setup. 
+3. Refer [backend](backend) & [frontend](frontend) code for detailed implemenation. 
+
 ---
 
 **Reference:** [AI in Production]— capstone Weeks 3–4. For AI-assisted work in this repo, read **`gameplan.md`**, **`CLAUDE.md`**, or **`AGENTS.md`** (they point at the same project briefing).
