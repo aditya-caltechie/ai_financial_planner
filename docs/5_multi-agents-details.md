@@ -20,7 +20,7 @@ These meet at **S3 Vectors**: Researcher continuously populates it; Reporter opt
 
 ---
 
-## Architecture Overview (Conceptual, from `guides/agent_architecture.md`)
+## Architecture Overview
 
 This is the “how it’s supposed to work” view. The sections below then map it to the **actual code + AWS wiring**.
 
@@ -184,7 +184,7 @@ Aurora Serverless v2 (Data API) is the single shared state store:
 
 ## Terraform Role in AWS Infra Setup
 
-### Part 5: Database (`terraform/5_database`)
+### Database (`terraform/5_database`)
 - Provisions **Aurora Serverless v2 Postgres** with **Data API enabled** + **Secrets Manager** secret (credentials)
 - Outputs the **cluster ARN** + **secret ARN** you must copy into root `.env` as:
   - `AURORA_CLUSTER_ARN=...`
@@ -194,7 +194,7 @@ Aurora Serverless v2 (Data API) is the single shared state store:
   - `uv run run_migrations.py`
   - `uv run seed_data.py` (and optionally `uv run verify_database.py`)
 
-### Part 6: Agents (`terraform/6_agents`)
+### Agents (`terraform/6_agents`)
 ### What Terraform actually provisions for Part 6 (`terraform/6_agents`)
 
 ```
@@ -264,7 +264,7 @@ Used in:
 
 ---
 
-## Agent-by-Agent Deep Dive
+# Agent-by-Agent Deep Dive
 
 ## 1. Planner (Orchestrator) — `backend/planner`
 
