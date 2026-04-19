@@ -148,22 +148,6 @@ sequenceDiagram
 
 ---
 
-## Guide vs Code (Important differences)
-
-- **S3 Vectors retrieval**
-  - **Guide view**: Planner “retrieves context” from S3 Vectors.
-  - **Code truth**: Planner does *not* query S3 Vectors directly; **Reporter** queries S3 Vectors via `get_market_insights()` (SageMaker embedding → S3 Vectors search).
-
-- **Model names in docs**
-  - **Guide view** mentions “Claude Sonnet/Claude 4”.
-  - **Code + Terraform** are configured to use Bedrock via LiteLLM with `BEDROCK_MODEL_ID` (commonly **Nova Pro**) and `BEDROCK_REGION`. The actual model is an environment variable, not hardcoded in the Lambdas.
-
-- **Tagger price vs real price**
-  - **Tagger** includes a `current_price` in structured output (approx).
-  - **Planner pre-step** overwrites/updates `instruments.current_price` using **Polygon** (more “real” prices).
-
----
-
 ## End‑to‑End AWS Flow (Portfolio Analysis)
 
 ### High-level ASCII flow
@@ -198,7 +182,7 @@ Aurora Serverless v2 (Data API) is the single shared state store:
 
 ---
 
-## Terraform (Parts 5–6)
+## Terraform Role in AWS Infra Setup
 
 ### Part 5: Database (`terraform/5_database`)
 - Provisions **Aurora Serverless v2 Postgres** with **Data API enabled** + **Secrets Manager** secret (credentials)
