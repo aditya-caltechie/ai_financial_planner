@@ -268,6 +268,9 @@ resource "aws_lambda_event_source_mapping" "planner_sqs" {
   event_source_arn = aws_sqs_queue.analysis_jobs.arn
   function_name    = aws_lambda_function.planner.arn
   batch_size       = 1
+
+  # Ensure the role has sqs:ReceiveMessage (and other) permissions before mapping is created
+  depends_on = [aws_iam_role_policy.lambda_agents_policy]
 }
 
 # Tagger Lambda

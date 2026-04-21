@@ -6,16 +6,41 @@ variable "aws_region" {
 variable "aurora_cluster_arn" {
   description = "ARN of the Aurora cluster from Part 5"
   type        = string
+
+  validation {
+    condition = can(
+      regex(
+        "^arn:aws:rds:[a-z0-9-]+:[0-9]{12}:cluster:.+",
+        var.aurora_cluster_arn
+      )
+    )
+    error_message = "aurora_cluster_arn must be a valid RDS cluster ARN (not empty). From Part 5 run: cd terraform/5_database && terraform output aurora_cluster_arn"
+  }
 }
 
 variable "aurora_secret_arn" {
   description = "ARN of the Secrets Manager secret from Part 5"
   type        = string
+
+  validation {
+    condition = can(
+      regex(
+        "^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:.+",
+        var.aurora_secret_arn
+      )
+    )
+    error_message = "aurora_secret_arn must be a valid Secrets Manager secret ARN (not empty). From Part 5 run: cd terraform/5_database && terraform output aurora_secret_arn"
+  }
 }
 
 variable "vector_bucket" {
   description = "S3 Vectors bucket name from Part 3"
   type        = string
+
+  validation {
+    condition     = length(trimspace(var.vector_bucket)) > 0
+    error_message = "vector_bucket must be set to your S3 Vectors bucket name (e.g. alex-vectors-<account-id>) from Part 3."
+  }
 }
 
 variable "bedrock_model_id" {

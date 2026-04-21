@@ -48,6 +48,43 @@ graph TB
 
 *(Diagram uses generic labels; resource names and regions match what you configure in Terraform and `.env`—see the guides.)*
 
+### Agent collaboration overview
+
+Portfolio analysis in **Guide 6** is orchestrated by the **Financial Planner** Lambda agent, which coordinates specialized agents and writes results to Aurora. The **Researcher** runs on its own schedule and feeds **S3 Vectors**; the planner retrieves that context during analysis. Full detail: **[docs/4_agent_architecture.md](docs/4_agent_architecture.md)**.
+
+```mermaid
+graph TB
+    User[User Request] -->|Portfolio Analysis| Planner[Financial Planner<br/>Orchestrator Agent]
+    
+    Planner -->|Check Instruments| Tagger[InstrumentTagger<br/>Agent]
+    Tagger -->|Classify Assets| DB[(Database)]
+    
+    Planner -->|Generate Analysis| Reporter[Report Writer<br/>Agent]
+    Reporter -->|Markdown Reports| DB
+    
+    Planner -->|Create Visualizations| Charter[Chart Maker<br/>Agent]
+    Charter -->|JSON Chart Data| DB
+    
+    Planner -->|Project Future| Retirement[Retirement Specialist<br/>Agent]
+    Retirement -->|Income Projections| DB
+    
+    DB -->|Results| Response[Complete Analysis<br/>Report]
+    
+    Planner -->|Retrieve Context| Vectors[(S3 Vectors<br/>Knowledge Base)]
+    
+    Schedule[EventBridge<br/>Every 2 Hours] -->|Trigger| Researcher[Researcher<br/>Agent]
+    Researcher -->|Store Insights| Vectors
+    Researcher -->|Web Research| Browser[Web Browser<br/>MCP Server]
+    
+    style Planner fill:#FFD700,stroke:#333,stroke-width:3px
+    style Researcher fill:#87CEEB
+    style Schedule fill:#9333EA
+    style Tagger fill:#98FB98
+    style Reporter fill:#DDA0DD
+    style Charter fill:#F0E68C
+    style Retirement fill:#FFB6C1
+```
+
 ## Tech stack
 
 | Area | Technologies |
@@ -134,7 +171,7 @@ There is no single “deploy everything” button: you apply **Terraform per dir
 **NOTE**: 
 1. Read all [docs](docs) in sequence for understanding. 
 2. Follow [guides](guides) for AWS infra setup. 
-3. Refer [backend](backend) & [frontend](frontend) code for detailed implemenation. 
+3. Refer [backend](backend) & [frontend](frontend) code for detailed implementation. 
 
 ---
 
