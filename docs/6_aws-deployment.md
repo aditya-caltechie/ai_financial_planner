@@ -6,6 +6,24 @@ This document summarizes **how to recreate Alex on AWS** using the course **Terr
 
 ---
 
+## Prerequisites (before Step 1 in the tables)
+
+Hard dependencies for a smooth run:
+
+| Prerequisite | Why |
+| --- | --- |
+| **AWS CLI** configured (`aws sts get-caller-identity`) | Terraform and scripts call AWS APIs. |
+| **Terraform** installed (≥ 1.5 recommended) | All `terraform/*` stacks. |
+| **Docker Desktop** running | Researcher image (`5b`) and agent/API Lambda packaging (`8`, `9` via `deploy.py`). |
+| **uv** + **Node.js / npm** | All `uv run …` paths and Next.js build for Part 7. |
+| **[Guide 1](../guides/1_permissions.md) IAM** complete | Your IAM user must be allowed to create the services below. |
+| **Bedrock model access** in the console for the **regions** your code uses ([Guides 4](../guides/4_researcher.md) and [6](../guides/6_agents.md)) | Researcher + agent Lambdas call Bedrock. |
+| **`OPENAI_API_KEY`** in root `.env` before **5b** | Required for OpenAI Agents SDK tracing in Researcher ([Guide 4](../guides/4_researcher.md)). |
+| **`POLYGON_API_KEY`** (and plan) ready before **8** | Planner / agents use Polygon per [Guide 6](../guides/6_agents.md); set in `.env` and `terraform/6_agents/terraform.tfvars`. |
+| **Clerk app + JWKS + issuer** before **9** | Set `clerk_jwks_url` / `clerk_issuer` in `terraform/7_frontend/terraform.tfvars` and keep Clerk keys available for the frontend build ([Guide 7](../guides/7_frontend.md)). |
+
+---
+
 ## Quick reference — deploy (create) in order
 
 Copy `terraform.tfvars.example` → `terraform.tfvars` and edit **before** each `terraform apply` where noted. Paths are from the **repo root** unless stated.
@@ -13,24 +31,28 @@ Copy `terraform.tfvars.example` → `terraform.tfvars` and edit **before** each 
 | Step | AWS resources (what you get) | Commands (run in order) | Description |
 | --- | --- | --- | --- |
 | 1 | **IAM** policies / group for the course user | Follow [`guides/1_permissions.md`](../guides/1_permissions.md) in the **AWS Console** | Grants AWS APIs for later Terraform and runtime services. Not in `terraform/`. |
-| 2 | **SageMaker** serverless embedding endpoint + execution role | `cd terraform/2_sagemaker`<br>`cp terraform.tfvars.example terraform.tfvars`<br>`terraform init`<br>`terraform apply` | Embeddings used by ingest Lambda ([`guides/2_sagemaker.md`](../guides/2_sagemaker.md)). Save endpoint name into root `.env`. |
-| 3 | **S3 Vectors** bucket + vector index | **AWS Console** → S3 → **Vector buckets** (see [`guides/3_ingest.md`](../guides/3_ingest.md)) | Separate from normal S3; required before ingest can store vectors. |
-| 4 | **Ingest** Lambda, **HTTP API Gateway**, usage plan / **API key**, IAM | `cd backend/ingest`<br>`uv run package.py`<br>`cd ../../terraform/3_ingestion`<br>`cp terraform.tfvars.example terraform.tfvars`<br>`terraform init`<br>`terraform apply` | Packages zip, then Terraform deploys ingest + API ([`guides/3_ingest.md`](../guides/3_ingest.md)). Put endpoint + key + bucket in `.env`. |
-| 5a | **ECR** repository, **App Runner** IAM role (partial apply only) | `cd terraform/4_researcher`<br>`cp terraform.tfvars.example terraform.tfvars`<br>`terraform init`<br>`terraform apply -target=aws_ecr_repository.researcher -target=aws_iam_role.app_runner_role` | **Must run before** the Docker push in **5b** ([`guides/4_researcher.md`](../guides/4_researcher.md)). On Windows PowerShell, quote the `-target=...` arguments as in the guide. |
-| 5b | **ECR** image (container artifact) | `cd backend/researcher`<br>`uv run deploy.py` | Docker build/push for **linux/amd64** to ECR. On **first** deploy, run **after 5a** and **before 5c** so App Runner is created from an image that already exists ([`guides/4_researcher.md`](../guides/4_researcher.md)). Later, use the same command to push updates. |
+| 2 | **SageMaker** serverless embedding endpoint + execution role | `cd terraform/2_sagemaker`<br>`cp terraform.tfvars.example terraform.tfvars`<br>`terraform init`<br>`terraform apply` | Embeddings used by ingest Lambda ([`guides/2_sagemaker.md`](../guides/2_sagemaker.md)). Save endpoint name into root `.env` and set `sagemaker_endpoint_name` in **Step 4** `terraform.tfvars` to match (default is often `alex-embedding-endpoint`). |
+| 3 | **S3 Vectors** bucket + vector index | **AWS Console** → S3 → **Vector buckets** (see [`guides/3_ingest.md`](../guides/3_ingest.md)) | Separate from normal S3; create **before** research/ingest writes vectors. Bucket name must match what you put in `.env` / later stacks (e.g. `alex-vectors-<account-id>`). |
+| 4 | **Ingest** Lambda, **HTTP API Gateway**, usage plan / **API key**, IAM | `cd backend/ingest`<br>`uv run package.py`<br>`cd ../../terraform/3_ingestion`<br>`cp terraform.tfvars.example terraform.tfvars`<br>`terraform init`<br>`terraform apply` | **Depends on:** Step **2** (endpoint name in `terraform.tfvars`). Packages zip, then Terraform deploys ingest + API ([`guides/3_ingest.md`](../guides/3_ingest.md)). Put `ALEX_API_ENDPOINT`, `ALEX_API_KEY`, `VECTOR_BUCKET` into root `.env` for Researcher and local tests. |
+| 5a | **ECR** repository, **App Runner** IAM role (partial apply only) | `cd terraform/4_researcher`<br>`cp terraform.tfvars.example terraform.tfvars`<br>`terraform init`<br>`terraform apply -target=aws_ecr_repository.researcher -target=aws_iam_role.app_runner_role` | **Depends on:** Step **4** values in `terraform.tfvars` / `.env` (`alex_api_*`, etc.). Edit **`backend/researcher/server.py`** (Bedrock region + model) per [Guide 4](../guides/4_researcher.md). **Must run before** **5b**. On Windows PowerShell, quote the `-target=...` arguments as in the guide. |
+| 5b | **ECR** image (container artifact) | `cd backend/researcher`<br>`uv run deploy.py` | Docker build/push for **linux/amd64** to ECR. On **first** deploy, run **after 5a** and **before 5c** so App Runner can pull an existing image ([`guides/4_researcher.md`](../guides/4_researcher.md)). Later, same command for updates. |
 | 5c | **App Runner** service, optional **EventBridge** scheduler | `cd terraform/4_researcher`<br>`terraform apply` | Creates the running Researcher service + optional schedule ([`guides/4_researcher.md`](../guides/4_researcher.md)). |
-| 6 | **Aurora Serverless v2**, **Secrets Manager** secret, networking | `cd terraform/5_database`<br>`cp terraform.tfvars.example terraform.tfvars`<br>`terraform init`<br>`terraform apply` | Primary app DB ([`guides/5_database.md`](../guides/5_database.md)). Copy ARNs into `.env` and into `terraform/6_agents/terraform.tfvars` later. |
-| 7 | **PostgreSQL schema** + seed data (not AWS resources by themselves; uses Data API) | `cd backend/database`<br>`uv run test_data_api.py`<br>`uv run run_migrations.py`<br>`uv run seed_data.py` | Creates tables and ETF seed ([`guides/5_database.md`](../guides/5_database.md)). |
-| 8 | **SQS** queues, **agent Lambdas** (planner/tagger/reporter/charter/retirement), **S3** lambda-packages bucket, IAM | `cd backend` (repo root)<br>`uv run package_docker.py`<br>`cd ../terraform/6_agents`<br>`cp terraform.tfvars.example terraform.tfvars` (fill Aurora, vectors, Bedrock, Polygon, SageMaker)<br>`terraform init`<br>`terraform apply` | Ships agent zip bundles with apply ([`guides/6_agents.md`](../guides/6_agents.md)). Add `SQS_QUEUE_URL` to `.env`. |
-| 8b (optional) | Same Lambdas (force refresh of code artifacts) | `cd backend`<br>`uv run deploy_all_lambdas.py` | Re-syncs agent deployment packages via Terraform taint/apply (see script docstring). |
-| 9 | **CloudFront**, **S3** static site bucket, **HTTP API** + **`alex-api` Lambda** | **Recommended:** `cd scripts`<br>`uv sync`<br>`uv run deploy.py`<br><br>**Or manual:** `cd backend/api && uv run package_docker.py` then `cd ../../terraform/7_frontend` + `terraform init/apply`, then `cd ../../frontend && npm install && npm run build` and `aws s3 sync out/ s3://…` + CloudFront invalidation ([`guides/7_frontend.md`](../guides/7_frontend.md)) | Part 7 needs **local** `terraform/5_database/terraform.tfstate` and `terraform/6_agents/terraform.tfstate`. `terraform apply` alone does **not** upload the Next.js `out/` site. |
-| 10 (optional) | **CloudWatch** dashboards (enterprise stack) | `cd terraform/8_enterprise`<br>`cp terraform.tfvars.example terraform.tfvars`<br>`terraform init`<br>`terraform apply` | Optional monitoring ([`guides/8_enterprise.md`](../guides/8_enterprise.md)). |
+| 6 | **Aurora Serverless v2**, **Secrets Manager** secret, networking | `cd terraform/5_database`<br>`cp terraform.tfvars.example terraform.tfvars`<br>`terraform init`<br>`terraform apply` | **Does not depend** on Researcher (5a–c). After apply: `terraform output` → copy **cluster** + **secret** ARNs into root `.env` and into `terraform/6_agents/terraform.tfvars` before **8** ([`guides/5_database.md`](../guides/5_database.md)). |
+| 7 | **PostgreSQL schema** + seed data (not AWS resources by themselves; uses Data API) | `cd backend/database`<br>`uv run test_data_api.py`<br>`uv run run_migrations.py`<br>`uv run seed_data.py` | **Depends on:** Step **6** and **`AURORA_CLUSTER_ARN` / `AURORA_SECRET_ARN`** in root `.env` ([`guides/5_database.md`](../guides/5_database.md)). |
+| 8 | **SQS** queues, **five agent Lambdas** (planner/tagger/reporter/charter/retirement), **S3** lambda-packages bucket, IAM | `cd backend` (repo root)<br>`uv run package_docker.py`<br>`cd ../terraform/6_agents`<br>`cp terraform.tfvars.example terraform.tfvars` (fill Aurora, vectors, Bedrock, Polygon, SageMaker)<br>`terraform init`<br>`terraform apply` | **Depends on:** Steps **2**, **3**, **6**; **strongly** run **7** first so schema/seed exist before agents write. Zips must exist on disk before apply ([`guides/6_agents.md`](../guides/6_agents.md)). After apply: `terraform output sqs_queue_url` → `SQS_QUEUE_URL` in `.env`. |
+| 8b (optional) | Same Lambdas (force refresh of code artifacts) | `cd backend`<br>`uv run deploy_all_lambdas.py` | **Only after Step 8.** Optional on first deploy if zips from **8** are already what you want; use after code changes ([`guides/6_agents.md`](../guides/6_agents.md)). |
+| 9 | **CloudFront**, **S3** static site bucket, **HTTP API** + **`alex-api` Lambda** | **Recommended:** `cd scripts`<br>`uv sync`<br>`uv run deploy.py`<br><br>**Or manual:** `cd backend/api && uv run package_docker.py` then `cd ../../terraform/7_frontend` + `terraform init/apply`, then `cd ../../frontend && npm install && npm run build` and `aws s3 sync out/ s3://…` + CloudFront invalidation ([`guides/7_frontend.md`](../guides/7_frontend.md)) | **Depends on:** Steps **6** + **8** applied on **this machine** so `terraform/7_frontend` can read `../5_database/terraform.tfstate` and `../6_agents/terraform.tfstate`. `terraform apply` alone does **not** upload the Next.js `out/` site. |
+| 10 (optional) | **CloudWatch** dashboards (enterprise stack) | `cd terraform/8_enterprise`<br>`cp terraform.tfvars.example terraform.tfvars`<br>`terraform init`<br>`terraform apply` | Set `bedrock_region` / `bedrock_model_id` to match agent Lambdas ([`guides/8_enterprise.md`](../guides/8_enterprise.md)). |
+
+**Order note (same dependencies, different sequencing):** After Step **4**, you may run **6 → 7** *before* **5a–c**. Researcher only needs ingest (**4**); it does **not** need Aurora.
 
 ---
 
 ## Quick reference — cleanup (destroy) in order
 
-Use this order to avoid broken Terraform references and to cut **Aurora** cost early when pausing work. Confirm with `yes` when Terraform prompts.
+Default order: remove **user-facing / dependent** stacks first, then **database**, then **research** (so nothing still calls ingest), then **ingest** before **SageMaker** (ingest invokes the endpoint). Confirm with `yes` when Terraform prompts.
+
+**Cost shortcut:** `cd terraform/5_database && terraform destroy` removes the largest steady cost; expect API and agents to fail until Part **5** (and usually **6–7**) are recreated. For a full teardown in one session, prefer **2 → 3 → 4** then continue down the table.
 
 | Step | AWS resources removed | Commands | Description |
 | --- | --- | --- | --- |
@@ -38,8 +60,8 @@ Use this order to avoid broken Terraform references and to cut **Aurora** cost e
 | 2 | **CloudFront**, **S3** frontend bucket objects + bucket policy, **API Gateway**, **`alex-api` Lambda**, related IAM | `cd terraform/7_frontend`<br>`terraform destroy`<br><br>**Or** helper (Part 7 only): `cd scripts`<br>`uv run destroy.py` | Destroy **7** while **5** and **6** state still exist if you need Terraform to read remote outputs. `destroy.py` empties the frontend bucket then runs `terraform destroy`. |
 | 3 | **SQS** job queue + DLQ, **five agent Lambdas**, **S3** lambda-packages bucket, agent IAM | `cd terraform/6_agents`<br>`terraform destroy` | Removes orchestration stack ([`guides/6_agents.md`](../guides/6_agents.md)). |
 | 4 | **Aurora** cluster + **Secrets Manager** DB secret, subnets/SG as defined | `cd terraform/5_database`<br>`terraform destroy` | **Largest ongoing saver** while not developing ([`guides/5_database.md`](../guides/5_database.md)). |
-| 5 | **App Runner**, **ECR** repo, scheduler Lambda + **EventBridge** (if created) | `cd terraform/4_researcher`<br>`terraform destroy` | Stops always-on Researcher cost ([`guides/4_researcher.md`](../guides/4_researcher.md)). |
-| 6 | **Ingest** Lambda, ingest **API Gateway**, API key resources, IAM | `cd terraform/3_ingestion`<br>`terraform destroy` | Removes ingest HTTP API ([`guides/3_ingest.md`](../guides/3_ingest.md)). |
+| 5 | **App Runner**, **ECR** repo, scheduler Lambda + **EventBridge** (if created) | `cd terraform/4_researcher`<br>`terraform destroy` | Stops Researcher / scheduler cost ([`guides/4_researcher.md`](../guides/4_researcher.md)). **Before** Step **6** so the service is not left pointing at an ingest API you are about to delete. |
+| 6 | **Ingest** Lambda, ingest **API Gateway**, API key resources, IAM | `cd terraform/3_ingestion`<br>`terraform destroy` | Removes ingest HTTP API ([`guides/3_ingest.md`](../guides/3_ingest.md)). **Before** Step **7** (SageMaker) because ingest invokes the embedding endpoint. |
 | 7 | **SageMaker** endpoint + model + roles | `cd terraform/2_sagemaker`<br>`terraform destroy` | Removes embedding endpoint ([`guides/2_sagemaker.md`](../guides/2_sagemaker.md)). |
 | 8 | **S3 Vectors** bucket + indexes | **AWS Console** → Vector buckets → delete | **Not** deleted by `terraform/3_ingestion` destroy; must be removed manually ([`guides/3_ingest.md`](../guides/3_ingest.md)). |
 | 9 | **IAM** group/policies from Guide 1 | **AWS Console** (optional) | Optional cleanup of course IAM ([`guides/1_permissions.md`](../guides/1_permissions.md)). |
