@@ -1,0 +1,6 @@
+[project]
+name = "alex-aws-orchestrator"
+version = "0.1.0"
+description = "Full-stack Terraform orchestration for Alex (see docs/6_aws-deployment.md)."
+requires-python = ">=3.12"
+dependencies = []

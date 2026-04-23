@@ -16,11 +16,34 @@ Hard dependencies for a smooth run:
 | **Terraform** installed (≥ 1.5 recommended) | All `terraform/*` stacks. |
 | **Docker Desktop** running | Researcher image (`5b`) and agent/API Lambda packaging (`8`, `9` via `deploy.py`). |
 | **uv** + **Node.js / npm** | All `uv run …` paths and Next.js build for Part 7. |
-| **[Guide 1](../guides/1_permissions.md) IAM** complete | Your IAM user must be allowed to create the services below. |
+| **AWS credentials** with rights to create the resources below | Any supported principal (e.g. IAM Identity Center / SSO role, assumed role, or automation user). The course’s [Guide 1](../guides/1_permissions.md) is optional if your org already grants equivalent access. |
 | **Bedrock model access** in the console for the **regions** your code uses ([Guides 4](../guides/4_researcher.md) and [6](../guides/6_agents.md)) | Researcher + agent Lambdas call Bedrock. |
 | **`OPENAI_API_KEY`** in root `.env` before **5b** | Required for OpenAI Agents SDK tracing in Researcher ([Guide 4](../guides/4_researcher.md)). |
 | **`POLYGON_API_KEY`** (and plan) ready before **8** | Planner / agents use Polygon per [Guide 6](../guides/6_agents.md); set in `.env` and `terraform/6_agents/terraform.tfvars`. |
 | **Clerk app + JWKS + issuer** before **9** | Set `clerk_jwks_url` / `clerk_issuer` in `terraform/7_frontend/terraform.tfvars` and keep Clerk keys available for the frontend build ([Guide 7](../guides/7_frontend.md)). |
+
+---
+
+## Orchestration scripts (`aws/`)
+
+These optional scripts follow the **same order** as the tables below. They print each command, run `terraform output -json` after each **apply**, and sleep between heavy steps (configurable).
+
+| Script | Purpose |
+| --- | --- |
+| [`aws/deploy_all_aws.py`](../aws/deploy_all_aws.py) | Full **create** path: SageMaker → … → enterprise (skippable range via CLI). **Guide 3 (S3 Vectors)** is an **interactive pause** (console work) unless you pass **`--skip-vectors-prompt`** when the vector bucket already exists. Step **9** runs the existing [`scripts/deploy.py`](../scripts/deploy.py) (Guide 7 only). |
+| [`aws/destroy_all_aws.py`](../aws/destroy_all_aws.py) | Full **Terraform teardown** in safe order (`8_enterprise` → `2_sagemaker`). Requires `--yes`. Does **not** delete S3 Vector buckets or Guide 1 IAM (console). Empties the **Part 7** frontend S3 bucket before destroy (same idea as `scripts/destroy.py`). |
+| [`aws/test_all_aws.py`](../aws/test_all_aws.py) | **Read-only checks** after deploy (Terraform outputs + `aws` CLI). Optional stack `8_enterprise` skipped if not applied. Use guide `test_full.py` scripts for functional agent/API tests. |
+
+**How to run:** `cd aws && uv sync && uv run python deploy_all_aws.py --help` (same pattern for `destroy_all_aws.py` and `test_all_aws.py`).
+
+### How this compares to `scripts/deploy.py` and `scripts/destroy.py`
+
+| Location | What it does |
+| --- | --- |
+| **`scripts/deploy.py`** | **Only Guide 7:** packages `backend/api`, `terraform apply` in `terraform/7_frontend`, builds Next.js with production API URL, uploads `frontend/out/` to S3, invalidates CloudFront. |
+| **`scripts/destroy.py`** | **Only Guide 7:** empties the frontend S3 bucket, `terraform destroy` in `terraform/7_frontend`, deletes local `frontend/out`, `.next`, `api_lambda.zip`. |
+| **`aws/deploy_all_aws.py`** | **Full stack** from the deploy table (plus calling `scripts/deploy.py` for step **9**). |
+| **`aws/destroy_all_aws.py`** | **All Terraform directories** for the course (8 → 2), not just Part 7. |
 
 ---
 
