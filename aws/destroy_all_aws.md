@@ -14,7 +14,7 @@ Companion docs:
 `destroy_all_aws.py` iterates Terraform stacks in a fixed **reverse** order (dependent / expensive stacks first):
 
 ```
-8_enterprise
+  → 8_enterprise
   → 7_frontend
   → 6_agents
   → 5_database

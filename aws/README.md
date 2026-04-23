@@ -31,17 +31,6 @@ Terraform **cannot** create **S3 Vector** buckets (Guide 3); the script **pauses
 
 ---
 
-## `scripts/` — Guide 7 only
-
-**No.** In `scripts/` you only have **Guide 7–scoped** helpers. They **do not** deploy or destroy SageMaker, ingest, researcher, database, agents, or enterprise stacks.
-
-| Script | Role | Same as full deploy/teardown? |
-| --- | --- | --- |
-| [`scripts/deploy.py`](../scripts/deploy.py) | Packages `backend/api`, runs `terraform/7_frontend`, builds Next.js, uploads `frontend/out/` to S3, invalidates CloudFront. | **No** — only **Part 7** (frontend + API). |
-| [`scripts/destroy.py`](../scripts/destroy.py) | Empties the Part 7 frontend S3 bucket, runs `terraform destroy` in `terraform/7_frontend`, removes some local build artifacts. | **No** — only **Part 7** teardown. |
-
----
-
 ## S3 Vectors (manual in AWS) — what the deploy script does
 
 **You must create the S3 *Vector* bucket and index yourself** in the AWS Console. This repo’s Terraform does **not** provision vector buckets (they live under S3 → **Vector buckets**, not a normal S3 bucket).
@@ -211,3 +200,17 @@ Read-only: **`aws`** CLI only (plus informational reads of local **`terraform.tf
 | Doc | Content |
 | --- | --- |
 | [`docs/6_aws-deployment.md`](../docs/6_aws-deployment.md) | Master tables, dependency order, manual console steps, and how `aws/` relates to `scripts/`. |
+
+---
+
+FYI: 
+## `scripts/` — Guide 7 only
+
+**No.** In `scripts/` you only have **Guide 7–scoped** helpers. They **do not** deploy or destroy SageMaker, ingest, researcher, database, agents, or enterprise stacks.
+
+| Script | Role | Same as full deploy/teardown? |
+| --- | --- | --- |
+| [`scripts/deploy.py`](../scripts/deploy.py) | Packages `backend/api`, runs `terraform/7_frontend`, builds Next.js, uploads `frontend/out/` to S3, invalidates CloudFront. | **No** — only **Part 7** (frontend + API). |
+| [`scripts/destroy.py`](../scripts/destroy.py) | Empties the Part 7 frontend S3 bucket, runs `terraform destroy` in `terraform/7_frontend`, removes some local build artifacts. | **No** — only **Part 7** teardown. |
+
+---

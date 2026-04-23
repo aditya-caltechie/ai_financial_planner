@@ -6,6 +6,9 @@ It is a narrative companion to:
 - **Master checklist**: [`docs/6_aws-deployment.md`](../docs/6_aws-deployment.md)
 - **CLI flags**: [`aws/README.md`](README.md)
 
+**NOTE** :
+- Make sure you are connected to Wired connection, else pushing image to ECR fails.
+- Also must have S3 vector created and indexed manually.
 ---
 
 ## Big picture
@@ -13,7 +16,7 @@ It is a narrative companion to:
 `deploy_all_aws.py` runs a **fixed pipeline** of step ids (you can slice it with `--from-step` / `--to-step`):
 
 ```
-sagemaker
+  → sagemaker
   → vectors (manual console step; pause unless --skip-vectors-prompt)
   → ingest
   → researcher-partial
