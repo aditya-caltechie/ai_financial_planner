@@ -6,6 +6,45 @@ This document summarizes **how to recreate Alex on AWS** using the course **Terr
 
 ---
 
+## Quick reference — deploy (create) in order
+
+Copy `terraform.tfvars.example` → `terraform.tfvars` and edit **before** each `terraform apply` where noted. Paths are from the **repo root** unless stated.
+
+| Step | AWS resources (what you get) | Commands (run in order) | Description |
+| --- | --- | --- | --- |
+| 1 | **IAM** policies / group for the course user | Follow [`guides/1_permissions.md`](../guides/1_permissions.md) in the **AWS Console** | Grants AWS APIs for later Terraform and runtime services. Not in `terraform/`. |
+| 2 | **SageMaker** serverless embedding endpoint + execution role | `cd terraform/2_sagemaker`<br>`cp terraform.tfvars.example terraform.tfvars`<br>`terraform init`<br>`terraform apply` | Embeddings used by ingest Lambda ([`guides/2_sagemaker.md`](../guides/2_sagemaker.md)). Save endpoint name into root `.env`. |
+| 3 | **S3 Vectors** bucket + vector index | **AWS Console** → S3 → **Vector buckets** (see [`guides/3_ingest.md`](../guides/3_ingest.md)) | Separate from normal S3; required before ingest can store vectors. |
+| 4 | **Ingest** Lambda, **HTTP API Gateway**, usage plan / **API key**, IAM | `cd backend/ingest`<br>`uv run package.py`<br>`cd ../../terraform/3_ingestion`<br>`cp terraform.tfvars.example terraform.tfvars`<br>`terraform init`<br>`terraform apply` | Packages zip, then Terraform deploys ingest + API ([`guides/3_ingest.md`](../guides/3_ingest.md)). Put endpoint + key + bucket in `.env`. |
+| 5b | **ECR** image (container artifact) | `cd backend/researcher`<br>`uv run deploy.py` | Docker build/push for **linux/amd64**; triggers App Runner deployment when service exists. |
+| 5c | **App Runner** service, optional **EventBridge** scheduler | `cd ../../terraform/4_researcher`<br>`terraform apply` | Creates the running Researcher + optional schedule ([`guides/4_researcher.md`](../guides/4_researcher.md)). |
+| 6 | **Aurora Serverless v2**, **Secrets Manager** secret, networking | `cd terraform/5_database`<br>`cp terraform.tfvars.example terraform.tfvars`<br>`terraform init`<br>`terraform apply` | Primary app DB ([`guides/5_database.md`](../guides/5_database.md)). Copy ARNs into `.env` and into `terraform/6_agents/terraform.tfvars` later. |
+| 7 | **PostgreSQL schema** + seed data (not AWS resources by themselves; uses Data API) | `cd backend/database`<br>`uv run test_data_api.py`<br>`uv run run_migrations.py`<br>`uv run seed_data.py` | Creates tables and ETF seed ([`guides/5_database.md`](../guides/5_database.md)). |
+| 8 | **SQS** queues, **agent Lambdas** (planner/tagger/reporter/charter/retirement), **S3** lambda-packages bucket, IAM | `cd ../..` then `cd backend`<br>`uv run package_docker.py`<br>`cd ../terraform/6_agents`<br>`cp terraform.tfvars.example terraform.tfvars` (fill Aurora, vectors, Bedrock, Polygon, SageMaker)<br>`terraform init`<br>`terraform apply` | Ships agent zip bundles with apply ([`guides/6_agents.md`](../guides/6_agents.md)). Add `SQS_QUEUE_URL` to `.env`. |
+| 8b (optional) | Same Lambdas (force refresh of code artifacts) | `cd backend`<br>`uv run deploy_all_lambdas.py` | Re-syncs agent deployment packages via Terraform taint/apply (see script docstring). |
+| 9 | **CloudFront**, **S3** static site bucket, **HTTP API** + **`alex-api` Lambda** | **Recommended:** `cd scripts`<br>`uv sync`<br>`uv run deploy.py`<br><br>**Or manual:** `cd backend/api && uv run package_docker.py` then `cd ../../terraform/7_frontend` + `terraform init/apply`, then `cd ../../frontend && npm install && npm run build` and `aws s3 sync out/ s3://…` + CloudFront invalidation ([`guides/7_frontend.md`](../guides/7_frontend.md)) | Part 7 needs **local** `terraform/5_database/terraform.tfstate` and `terraform/6_agents/terraform.tfstate`. `terraform apply` alone does **not** upload the Next.js `out/` site. |
+| 10 (optional) | **CloudWatch** dashboards (enterprise stack) | `cd terraform/8_enterprise`<br>`cp terraform.tfvars.example terraform.tfvars`<br>`terraform init`<br>`terraform apply` | Optional monitoring ([`guides/8_enterprise.md`](../guides/8_enterprise.md)). |
+
+---
+
+## Quick reference — cleanup (destroy) in order
+
+Use this order to avoid broken Terraform references and to cut **Aurora** cost early when pausing work. Confirm with `yes` when Terraform prompts.
+
+| Step | AWS resources removed | Commands | Description |
+| --- | --- | --- | --- |
+| 1 | **CloudWatch** dashboards / enterprise extras | `cd terraform/8_enterprise`<br>`terraform destroy` | Drops Guide 8 resources ([`guides/8_enterprise.md`](../guides/8_enterprise.md)). |
+| 2 | **CloudFront**, **S3** frontend bucket objects + bucket policy, **API Gateway**, **`alex-api` Lambda**, related IAM | `cd terraform/7_frontend`<br>`terraform destroy`<br><br>**Or** helper (Part 7 only): `cd scripts`<br>`uv run destroy.py` | Destroy **7** while **5** and **6** state still exist if you need Terraform to read remote outputs. `destroy.py` empties the frontend bucket then runs `terraform destroy`. |
+| 3 | **SQS** job queue + DLQ, **five agent Lambdas**, **S3** lambda-packages bucket, agent IAM | `cd terraform/6_agents`<br>`terraform destroy` | Removes orchestration stack ([`guides/6_agents.md`](../guides/6_agents.md)). |
+| 4 | **Aurora** cluster + **Secrets Manager** DB secret, subnets/SG as defined | `cd terraform/5_database`<br>`terraform destroy` | **Largest ongoing saver** while not developing ([`guides/5_database.md`](../guides/5_database.md)). |
+| 5 | **App Runner**, **ECR** repo, scheduler Lambda + **EventBridge** (if created) | `cd terraform/4_researcher`<br>`terraform destroy` | Stops always-on Researcher cost ([`guides/4_researcher.md`](../guides/4_researcher.md)). |
+| 6 | **Ingest** Lambda, ingest **API Gateway**, API key resources, IAM | `cd terraform/3_ingestion`<br>`terraform destroy` | Removes ingest HTTP API ([`guides/3_ingest.md`](../guides/3_ingest.md)). |
+| 7 | **SageMaker** endpoint + model + roles | `cd terraform/2_sagemaker`<br>`terraform destroy` | Removes embedding endpoint ([`guides/2_sagemaker.md`](../guides/2_sagemaker.md)). |
+| 8 | **S3 Vectors** bucket + indexes | **AWS Console** → Vector buckets → delete | **Not** deleted by `terraform/3_ingestion` destroy; must be removed manually ([`guides/3_ingest.md`](../guides/3_ingest.md)). |
+| 9 | **IAM** group/policies from Guide 1 | **AWS Console** (optional) | Optional cleanup of course IAM ([`guides/1_permissions.md`](../guides/1_permissions.md)). |
+
+---
+
 ## Figure A — How services fit together (architecture roles)
 
 Use this mental model when deciding **create order** and **destroy order**. (Compare to the “enterprise / multi-agent” diagram in the course materials.)
@@ -14,7 +53,7 @@ Use this mental model when deciding **create order** and **destroy order**. (Com
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ USER                                                                        │
 │  Browser ──HTTPS──► CloudFront ──► S3 (static Next.js export)               │
-│           └──auth──► Clerk (SaaS, not AWS)                                   │
+│           └──auth──► Clerk (SaaS, not AWS)                                  │
 │           └──/api/*► API Gateway ──► Lambda (FastAPI "alex-api")            │
 └─────────────────────────────────────────────────────────────────────────────┘
                                         │
@@ -29,11 +68,11 @@ Use this mental model when deciding **create order** and **destroy order**. (Com
         │                              │                              │
         │  SQS "analysis jobs"         │  Agent Lambdas write         │
         ▼                              │  job + instrument rows       │
- ┌──────────────┐                       │                              │
- │ Planner      │──invoke──────────────┼──► Tagger / Reporter /        │
- │ (Lambda)     │   (async)            │     Charter / Retirement      │
- └──────┬───────┘                       │     (Lambdas + Bedrock)     │
-        │                               │                              │
+ ┌──────────────┐                      │                              │
+ │ Planner      │──invoke──────────────┼──► Tagger / Reporter /       │
+ │ (Lambda)     │   (async)            │     Charter / Retirement     │
+ └──────┬───────┘                      │     (Lambdas + Bedrock)      │
+        │                              │                              │
         └──────────────────────────────┴──────────────────────────────┘
 
 Parallel research / knowledge pipeline (Guides 2–4):
@@ -394,7 +433,7 @@ uv run destroy.py
 
 | Topic | Doc |
 | --- | --- |
-| Research → ingest → vectors narrative | [`docs/data-pipeline.md`](data-pipeline.md) |
+| Research → ingest → vectors narrative | [`docs/2_data-pipeline.md`](2_data-pipeline.md) |
 | Broader architecture / costs | [`docs/3_architecture.md`](3_architecture.md) |
 | Multi-agent collaboration diagram | [`docs/4_agent_architecture.md`](4_agent_architecture.md) |
 | Course steps | [`guides/`](../guides/) |
