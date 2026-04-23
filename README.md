@@ -14,7 +14,73 @@ Deeper narrative for the research → ingest → vectors path: **[docs/data-pipe
 
 ## Architecture (high level)
 
-This diagram shows the full deployed app in **Guide 7** (frontend + API) and how it connects to the agent system from **Guide 6**:
+### Complete multi-agent AWS architecture
+
+Alex splits into three cooperating planes: the **user request path** (static UI and API into a queue), the **agent orchestra** (planner plus four specialist Lambdas on Bedrock and Aurora), and the **research and vector pipeline** (scheduled Researcher on App Runner, ingest, SageMaker embeddings, and S3 Vectors). The reference diagram below matches the course “multi-agent” view; more narrative and cost notes live in **[docs/3_architecture.md](docs/3_architecture.md)**.
+
+<img src="docs/assets/multi-agent-architecture.png" alt="Alex complete multi-agent AWS architecture: frontend, API, SQS, planner and agents, Bedrock, Aurora, scheduler, Researcher, ingest, SageMaker, and S3 Vectors" width="920" style="max-width: 100%; height: auto;" />
+
+**Request ingestion (user-facing):** **CloudFront** serves the **Next.js** frontend from **S3**. **API Gateway** fronts the **FastAPI** **Lambda** (Guide 7). That Lambda uses **Aurora** for portfolio state and publishes agent jobs to **SQS** for asynchronous processing.
+
+**Planning and agent execution (Guide 6):** The **Planner** Lambda consumes **SQS** and coordinates the **Tagger**, **Reporter**, **Charter**, and **Retirement** Lambdas. Each agent calls a **frontier model on Amazon Bedrock** and reads or writes structured outputs in **Aurora Serverless v2**.
+
+**Background research and knowledge (Guides 3–4):** An **EventBridge**-driven **scheduler Lambda** can invoke the **Researcher** on **App Runner**, which also uses **Bedrock** (and optional web research). The Researcher pushes text through **API Gateway** into the **ingest Lambda**, which calls **SageMaker** for embeddings and writes vectors to **S3 Vectors** so the planner and agents can retrieve research context during portfolio analysis.
+
+```mermaid
+flowchart TB
+  subgraph ingest_path["Request path"]
+    CF[CloudFront + S3<br/>frontend]
+    GW[API Gateway]
+    API[Backend API<br/>Lambda]
+    Q[SQS queue]
+    CF --> GW
+    GW --> API
+    API --> Q
+  end
+
+  subgraph agents["Multi-agent execution"]
+    PL[Planner<br/>Lambda]
+    TG[Tagger]
+    RP[Reporter]
+    CH[Charter]
+    RT[Retirement]
+    Q --> PL
+    PL --> TG
+    PL --> RP
+    PL --> CH
+    PL --> RT
+  end
+
+  BR[(Amazon Bedrock)]
+  AU[(Aurora Serverless v2)]
+
+  TG --> BR
+  RP --> BR
+  CH --> BR
+  RT --> BR
+  TG --> AU
+  RP --> AU
+  CH --> AU
+  RT --> AU
+
+  subgraph research["Research and vectors"]
+    SCH[Scheduler<br/>Lambda]
+    AR[Researcher<br/>App Runner]
+    ING[Ingest<br/>Lambda]
+    SM[(SageMaker<br/>embeddings)]
+    VS[(S3 Vectors)]
+    SCH --> AR
+    AR <--> BR
+    AR --> ING
+    ING <--> SM
+    ING <--> VS
+  end
+
+  PL -.->|vector search / context| VS
+  API --> AU
+```
+
+The diagram below zooms in on the full deployed app in **Guide 7** (frontend + API) and how it connects to the agent system from **Guide 6**:
 
 ```mermaid
 graph TB
