@@ -16,7 +16,8 @@ import logging
 try:
     from dotenv import load_dotenv
 
-    load_dotenv(override=True)
+    # Do not override explicitly provided env vars (helps orchestration and tests).
+    load_dotenv(override=False)
 except ImportError:
     pass  # dotenv not installed, continue without it
 

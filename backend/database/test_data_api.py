@@ -11,8 +11,9 @@ import sys
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv(override=True)
+# Load environment variables.
+# IMPORTANT: do not override explicit env vars (e.g. when orchestration passes fresh ARNs).
+load_dotenv(override=False)
 
 def get_current_region():
     """Get the current AWS region from the session"""
@@ -27,7 +28,9 @@ def get_cluster_details(region):
     secret_arn = os.getenv('AURORA_SECRET_ARN')
     
     if cluster_arn and secret_arn:
-        print(f"📋 Using configuration from .env file")
+        # Values may come from the shell environment (e.g. orchestration) or .env;
+        # this message is intentionally generic.
+        print("📋 Using configuration from environment variables")
         
         # Verify the cluster exists and Data API is enabled
         rds_client = boto3.client('rds', region_name=region)

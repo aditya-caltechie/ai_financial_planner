@@ -8,6 +8,8 @@ S3 **Vector** bucket + index are still created in the **AWS Console** (Guide 3);
 
 Part 7 UI/API is delegated to scripts/deploy.py (same as the course).
 
+Uses whatever AWS credentials the CLI has (IAM user, SSO, assumed role, or root); no separate course IAM user is required by this script.
+
 Usage (from repo root):
   cd aws && uv sync && uv run python deploy_all_aws.py --help
   cd aws && uv run python deploy_all_aws.py --sleep 20
@@ -17,6 +19,9 @@ Usage (from repo root):
 from __future__ import annotations
 
 import argparse
+import os
+import time
+from datetime import datetime, timezone
 import sys
 from pathlib import Path
 
@@ -32,6 +37,44 @@ from orchestrator import (
 
 SCRIPTS = REPO_ROOT / "scripts"
 TF = REPO_ROOT / "terraform"
+
+DEPLOY_STEP_PLAN: dict[str, str] = {
+    "sagemaker": "Terraform (2_sagemaker): SageMaker embedding endpoint + role",
+    "vectors": "Manual (console): S3 Vector bucket + index (Guide 3)",
+    "ingest": "Package ingest + Terraform (3_ingestion): ingest Lambda + API Gateway + API key",
+    "researcher-partial": "Terraform (4_researcher target): ECR repo + App Runner IAM role",
+    "researcher-image": "Docker build/push: Researcher image → ECR",
+    "researcher-full": "Terraform (4_researcher): App Runner service + optional schedule",
+    "database": "Terraform (5_database): Aurora Serverless v2 + secret",
+    "db-migrate": "uv run (backend/database): test Data API + migrations + seed data",
+    "agents": "Package agents + Terraform (6_agents): SQS + 5 Lambdas + lambda-packages bucket",
+    "part7": "scripts/deploy.py (Guide 7): API Lambda + API Gateway + S3/CloudFront + upload/invalidate",
+    "enterprise": "Terraform (8_enterprise): CloudWatch dashboards/alarms",
+}
+
+
+def _fmt_seconds(s: float) -> str:
+    if s < 60:
+        return f"{s:.1f}s"
+    return f"{int(s // 60)}m{int(s % 60):02d}s"
+
+
+def _get_database_env_from_tf() -> dict[str, str]:
+    """Prefer fresh TF outputs over stale .env when running db migration scripts."""
+    out = load_terraform_outputs(TF / "5_database") or {}
+    cluster = terraform_output_value(out, "aurora_cluster_arn")
+    secret = terraform_output_value(out, "aurora_secret_arn")
+    dbname = terraform_output_value(out, "database_name")
+    env: dict[str, str] = {}
+    if cluster:
+        env["AURORA_CLUSTER_ARN"] = str(cluster)
+    if secret:
+        env["AURORA_SECRET_ARN"] = str(secret)
+    if dbname:
+        env["AURORA_DATABASE"] = str(dbname)
+    # Some scripts fall back to DEFAULT_AWS_REGION; keep it aligned with stack vars.
+    env["DEFAULT_AWS_REGION"] = os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
+    return env
 
 
 def print_post_deploy_expectations(ran_part7: bool) -> None:
@@ -57,7 +100,7 @@ def print_post_deploy_expectations(ran_part7: bool) -> None:
     print("  • Wait up to ~10–15 minutes if CloudFront was just created (edge propagation).")
     print("  • Clerk: use the app you configured; first visit may redirect to sign-in.")
     print("  • Deep guide: guides/7_frontend.md — populate test data, run analysis, CloudWatch.")
-    print("  • Optional smoke: `cd aws && uv run python test_all_aws.py`")
+    print("  • Optional validate: `cd aws && uv run python validate_deploy_aws.py`")
 
 
 def _step_banner(title: str) -> None:
@@ -117,9 +160,12 @@ def step_database() -> None:
 def step_db_migrate() -> None:
     _step_banner("STEP 7 — Database schema + seed (backend/database)")
     db = REPO_ROOT / "backend" / "database"
-    run(["uv", "run", "test_data_api.py"], cwd=db)
-    run(["uv", "run", "run_migrations.py"], cwd=db)
-    run(["uv", "run", "seed_data.py"], cwd=db)
+    # Use fresh outputs from terraform/5_database when available (secret names are random-suffixed),
+    # so we don't fail due to stale .env values after re-deploys.
+    env = _get_database_env_from_tf()
+    run(["uv", "run", "test_data_api.py"], cwd=db, env_overrides=env)
+    run(["uv", "run", "run_migrations.py"], cwd=db, env_overrides=env)
+    run(["uv", "run", "seed_data.py"], cwd=db, env_overrides=env)
 
 
 def step_agents() -> None:
@@ -206,6 +252,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    started_wall = datetime.now(timezone.utc)
+    started = time.perf_counter()
     args = parse_args()
     ids = [x[0] for x in DEPLOY_SEQUENCE]
     i0 = ids.index(args.from_step)
@@ -228,13 +276,23 @@ def main() -> None:
     print(f"  Repo: {REPO_ROOT}")
     print(f"  Steps: {' → '.join(s[0] for s in slice_steps)}")
     print(f"  Post-apply sleep: {args.sleep}s")
+    print(f"  Started: {started_wall.isoformat()}")
+    print("\nPlan (what this run will deploy):")
+    for sid, _ in slice_steps:
+        desc = DEPLOY_STEP_PLAN.get(sid, "")
+        print(f"  • {sid}: {desc}")
 
     ran_part7 = False
+    step_times: list[tuple[str, float]] = []
     for sid, fn in slice_steps:
+        t0 = time.perf_counter()
         if sid == "vectors" and args.skip_vectors_prompt:
             print("\n  … Skipping S3 Vectors console confirmation (--skip-vectors-prompt)")
             continue
         fn()
+        dt = time.perf_counter() - t0
+        step_times.append((sid, dt))
+        print(f"\n  ⏱️  Step '{sid}' duration: {_fmt_seconds(dt)}")
         if sid == "part7":
             ran_part7 = True
         if sid not in ("vectors", "db-migrate"):
@@ -247,9 +305,18 @@ def main() -> None:
     print("\n" + "=" * 72)
     print("  Deploy sequence finished.")
     print("=" * 72)
+    total = time.perf_counter() - started
+    ended_wall = datetime.now(timezone.utc)
+    print(f"\nStarted: {started_wall.isoformat()}")
+    print(f"Ended:   {ended_wall.isoformat()}")
+    print(f"Total:   {_fmt_seconds(total)}")
+    if step_times:
+        print("\nPer-step timing:")
+        for sid, dt in step_times:
+            print(f"  • {sid}: {_fmt_seconds(dt)}")
     print("\nNext: sync `.env` from `terraform output` in each stack if guides require it,")
-    print("then run a smoke check:")
-    print("  cd aws && uv run python test_all_aws.py")
+    print("then run deploy validation:")
+    print("  cd aws && uv run python validate_deploy_aws.py")
     print_post_deploy_expectations(ran_part7)
 
 

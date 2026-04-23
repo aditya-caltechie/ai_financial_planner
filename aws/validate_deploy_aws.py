@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """
-Smoke-test that Alex AWS pieces exist (Terraform state + AWS API read-only checks).
+Post-deploy validation: confirm **Alex** Terraform outputs and key AWS resources **exist**
+(read-only `aws` CLI + local Terraform state).
 
 This does **not** replace guide test scripts (e.g. backend/*/test_full.py, ingest tests).
 It answers: "After terraform apply / deploy_all_aws.py, are the main resources present?"
 
+Pairing: **`validate_destroy_aws.py`** is the inverse (expects resources **absent** after teardown).
+
 Usage:
-  cd aws && uv sync && uv run python test_all_aws.py
-  cd aws && uv run python test_all_aws.py --fail-fast
+  cd aws && uv sync && uv run python validate_deploy_aws.py
+  cd aws && uv run python validate_deploy_aws.py --fail-fast
 
 Cross-checks: guides/2_sagemaker through 8_enterprise (resource presence only).
+
+Uses the same AWS credentials as the CLI (any principal, including root).
 """
 
 from __future__ import annotations
@@ -68,7 +73,7 @@ def main() -> None:
     args = p.parse_args()
 
     check_tools(require_docker=False, require_npm=False)
-    print("\nAlex AWS smoke test (read-only)")
+    print("\nAlex AWS deploy validation (read-only)")
     print(f"  Repo: {REPO_ROOT}\n")
 
     failed = 0

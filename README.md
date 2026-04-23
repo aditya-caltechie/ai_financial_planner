@@ -8,7 +8,7 @@
 
 Students deploy Alex on **AWS** end-to-end: serverless compute (Lambda, App Runner), **Amazon Bedrock** for agent reasoning, **SageMaker** for text embeddings, **S3 Vectors** for cost-effective semantic storage, optional **EventBridge** automation, and a **Next.js** UI with **Clerk** auth. The goal is to practice real **IaC (Terraform)**, observability, and multi-agent patterns—not only notebooks.
 
-**What you get out of the repo:** guided Terraform stacks (`terraform/2_sagemaker` … `terraform/8_enterprise`), Python agents under `backend/` (each directory is a **uv** project), a `frontend/` app, and `scripts/` for local dev and deploy helpers.
+**What you get out of the repo:** guided Terraform stacks (`terraform/2_sagemaker` … `terraform/8_enterprise`), Python agents under `backend/` (each directory is a **uv** project), a `frontend/` app, **`aws/`** for one-command full-stack deploy/destroy on AWS, and `scripts/` for local dev and Guide 7–scoped helpers.
 
 Deeper narrative for the research → ingest → vectors path: **[docs/data-pipeline.md](docs/data-pipeline.md)**. Full architecture notes (components, costs, flows): **[docs/3_architecture.md](docs/3_architecture.md)**.
 
@@ -195,10 +195,11 @@ graph TB
 | **[backend/](backend/)** | Agents, API, ingest, database library—**each subfolder is a uv project** |
 | **[frontend/](frontend/)** | Next.js app; needs `frontend/.env.local` (Clerk) |
 | **[terraform/](terraform/)** | One stack per guide phase (`2_sagemaker` … `8_enterprise`) |
-| **[scripts/](scripts/)** | Local dev orchestration (`run_local.py`), deploy helpers |
-| **[docs/](docs/)** | Extra architecture and pipeline write-ups |
+| **[scripts/](scripts/)** | Local dev (`run_local.py`); **Guide 7 only** — `deploy.py` / `destroy.py` for frontend + API |
+| **[aws/](aws/)** | **Full-stack** AWS orchestration: `deploy_all_aws.py`, `destroy_all_aws.py`, validate scripts — see **[aws/README.md](aws/README.md)** |
+| **[docs/](docs/)** | Extra architecture and pipeline write-ups (including **[docs/6_aws-deployment.md](docs/6_aws-deployment.md)** for stack order) |
 
-**Suggested order of work:** Week 3 — guides 1 → 2 → 3 → 4. Week 4 — guides 5 → 6 → 7 → 8. Copy each `terraform.tfvars.example` to `terraform.tfvars` before `terraform apply`.
+**Suggested order of work:** Week 3 — guides 1 → 2 → 3 → 4. Week 4 — guides 5 → 6 → 7 → 8. Copy each `terraform.tfvars.example` to `terraform.tfvars` before `terraform apply`. Once prerequisites are satisfied, you may run the full sequence via **`aws/deploy_all_aws.py`** instead of applying each stack by hand (see **Deploying to AWS** below).
 
 ## How to run this project
 
@@ -238,9 +239,23 @@ cd backend/researcher && uv run test_research.py
 
 Always use **`uv run …`** inside the relevant `backend/<package>` directory.
 
-### Deploying to AWS
+### Deploying to AWS (single scripts in `aws/`)
 
-There is no single “deploy everything” button: you apply **Terraform per directory** and run packaging scripts as each **guide** describes. Use **`scripts/deploy.py`** where the course points you at it (e.g. frontend assets). Destroy resources with **`scripts/destroy.py`** or `terraform destroy` per stack when you are done, to control cost—especially **Aurora** (Guide 5).
+After you have **AWS CLI**, **Terraform**, **Docker**, **uv**, **npm**, and the **per-guide** files in place (`terraform/*/terraform.tfvars`, root **`.env`**, Clerk vars for Part 7, S3 **Vector** bucket in the console per Guide 3), you can drive the **whole Terraform path** from one place:
+
+| Goal | Command (from repo root) |
+| --- | --- |
+| **Deploy everything** (SageMaker → … → optional enterprise; Part 7 runs `scripts/deploy.py` inside the flow) | `cd aws && uv sync && uv run python deploy_all_aws.py` |
+| **Destroy all Terraform stacks** (safe order: enterprise → … → SageMaker) | `cd aws && uv run python destroy_all_aws.py --yes` |
+| **Dry-run** (list steps / stacks only) | `cd aws && uv run python deploy_all_aws.py --dry-run` or `cd aws && uv run python destroy_all_aws.py --dry-run` |
+
+**Details, every CLI flag, partial runs, and caveats** (S3 Vectors pause, `--skip-vectors-prompt`, `--from-step`, cost notes): **[aws/README.md](aws/README.md)**. **Master checklist and stack order:** **[docs/6_aws-deployment.md](docs/6_aws-deployment.md)**.
+
+**Still manual:** S3 **Vector** buckets and indexes (Guide 3) are not deleted by `destroy_all_aws.py` — remove them in the AWS console if you want that cost gone.
+
+**After deploy / destroy (read-only checks):** `uv run python validate_deploy_aws.py` and `uv run python validate_destroy_aws.py` (see `aws/README.md`).
+
+You can always follow the **guides** step-by-step with `terraform apply` per directory instead; `scripts/deploy.py` / `scripts/destroy.py` remain **Guide 7 only** (frontend + API + S3 upload), which `deploy_all_aws.py` invokes as the **`part7`** step.
 
 ---
 

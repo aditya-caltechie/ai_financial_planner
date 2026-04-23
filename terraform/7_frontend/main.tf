@@ -43,6 +43,17 @@ locals {
     Part        = "7_frontend"
     ManagedBy   = "terraform"
   }
+
+  # Remote Part 5 / Part 6 state may be empty (e.g. database destroyed first). try() avoids
+  # "outputs is object with no attributes" during refresh/destroy of this stack.
+  aurora_cluster_arn = try(data.terraform_remote_state.database.outputs.aurora_cluster_arn, null)
+  aurora_secret_arn  = try(data.terraform_remote_state.database.outputs.aurora_secret_arn, null)
+  database_name      = try(data.terraform_remote_state.database.outputs.database_name, null)
+  sqs_queue_url      = try(data.terraform_remote_state.agents.outputs.sqs_queue_url, null)
+  sqs_queue_arn      = try(data.terraform_remote_state.agents.outputs.sqs_queue_arn, null)
+
+  db_remote_ok    = local.aurora_cluster_arn != null && local.aurora_cluster_arn != "" && local.aurora_secret_arn != null && local.aurora_secret_arn != ""
+  agents_remote_ok = local.sqs_queue_arn != null && local.sqs_queue_arn != ""
 }
 
 # S3 bucket for frontend static website
@@ -116,10 +127,11 @@ resource "aws_iam_role_policy_attachment" "api_lambda_basic" {
   role       = aws_iam_role.api_lambda_role.name
 }
 
-# Policy for Aurora Data API access
+# Policy for Aurora Data API access (omit when Part 5 outputs are gone so destroy can proceed)
 resource "aws_iam_role_policy" "api_lambda_aurora" {
-  name = "${local.name_prefix}-api-lambda-aurora"
-  role = aws_iam_role.api_lambda_role.id
+  count = local.db_remote_ok ? 1 : 0
+  name  = "${local.name_prefix}-api-lambda-aurora"
+  role  = aws_iam_role.api_lambda_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -133,23 +145,24 @@ resource "aws_iam_role_policy" "api_lambda_aurora" {
           "rds-data:CommitTransaction",
           "rds-data:RollbackTransaction"
         ]
-        Resource = data.terraform_remote_state.database.outputs.aurora_cluster_arn
+        Resource = local.aurora_cluster_arn
       },
       {
         Effect = "Allow"
         Action = [
           "secretsmanager:GetSecretValue"
         ]
-        Resource = data.terraform_remote_state.database.outputs.aurora_secret_arn
+        Resource = local.aurora_secret_arn
       }
     ]
   })
 }
 
-# Policy for SQS access
+# Policy for SQS access (omit when Part 6 outputs are gone)
 resource "aws_iam_role_policy" "api_lambda_sqs" {
-  name = "${local.name_prefix}-api-lambda-sqs"
-  role = aws_iam_role.api_lambda_role.id
+  count = local.agents_remote_ok ? 1 : 0
+  name  = "${local.name_prefix}-api-lambda-sqs"
+  role  = aws_iam_role.api_lambda_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -160,7 +173,7 @@ resource "aws_iam_role_policy" "api_lambda_sqs" {
           "sqs:SendMessage",
           "sqs:GetQueueAttributes"
         ]
-        Resource = data.terraform_remote_state.agents.outputs.sqs_queue_arn
+        Resource = local.sqs_queue_arn
       }
     ]
   })
@@ -204,14 +217,15 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      # Database configuration from Part 5
-      AURORA_CLUSTER_ARN = data.terraform_remote_state.database.outputs.aurora_cluster_arn
-      AURORA_SECRET_ARN  = data.terraform_remote_state.database.outputs.aurora_secret_arn
-      AURORA_DATABASE    = data.terraform_remote_state.database.outputs.database_name
+      # Database configuration from Part 5 (empty if remote state was already torn down).
+      # Do not use coalesce(x, "") — Terraform coalesce skips empty strings, so null + "" errors.
+      AURORA_CLUSTER_ARN = local.aurora_cluster_arn != null ? local.aurora_cluster_arn : ""
+      AURORA_SECRET_ARN  = local.aurora_secret_arn != null ? local.aurora_secret_arn : ""
+      AURORA_DATABASE    = local.database_name != null ? local.database_name : ""
       DEFAULT_AWS_REGION = var.aws_region
 
       # SQS configuration from Part 6
-      SQS_QUEUE_URL = data.terraform_remote_state.agents.outputs.sqs_queue_url
+      SQS_QUEUE_URL = local.sqs_queue_url != null ? local.sqs_queue_url : ""
 
       # Clerk configuration for JWT validation
       CLERK_JWKS_URL = var.clerk_jwks_url
@@ -224,10 +238,11 @@ resource "aws_lambda_function" "api" {
 
   # Ensure Lambda waits for dependencies including CloudFront
   depends_on = [
+    aws_iam_role_policy_attachment.api_lambda_basic,
+    aws_iam_role_policy.api_lambda_invoke,
+    aws_cloudfront_distribution.main,
     aws_iam_role_policy.api_lambda_aurora,
     aws_iam_role_policy.api_lambda_sqs,
-    aws_iam_role_policy.api_lambda_invoke,
-    aws_cloudfront_distribution.main
   ]
 }
 

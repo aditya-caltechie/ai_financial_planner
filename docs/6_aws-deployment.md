@@ -16,7 +16,7 @@ Hard dependencies for a smooth run:
 | **Terraform** installed (≥ 1.5 recommended) | All `terraform/*` stacks. |
 | **Docker Desktop** running | Researcher image (`5b`) and agent/API Lambda packaging (`8`, `9` via `deploy.py`). |
 | **uv** + **Node.js / npm** | All `uv run …` paths and Next.js build for Part 7. |
-| **AWS credentials** with rights to create the resources below | Any supported principal (e.g. IAM Identity Center / SSO role, assumed role, or automation user). The course’s [Guide 1](../guides/1_permissions.md) is optional if your org already grants equivalent access. |
+| **AWS credentials** with rights to create the resources below | Any principal the AWS CLI uses (`aws sts get-caller-identity`): IAM user, assumed role, SSO, **or account root** (common in small sandboxes). The orchestration scripts do **not** depend on a separate “course” IAM user. [Guide 1](../guides/1_permissions.md) is **optional** if your caller already has enough access (e.g. root, or an admin role your org assigned). |
 | **Bedrock model access** in the console for the **regions** your code uses ([Guides 4](../guides/4_researcher.md) and [6](../guides/6_agents.md)) | Researcher + agent Lambdas call Bedrock. |
 | **`OPENAI_API_KEY`** in root `.env` before **5b** | Required for OpenAI Agents SDK tracing in Researcher ([Guide 4](../guides/4_researcher.md)). |
 | **`POLYGON_API_KEY`** (and plan) ready before **8** | Planner / agents use Polygon per [Guide 6](../guides/6_agents.md); set in `.env` and `terraform/6_agents/terraform.tfvars`. |
@@ -31,10 +31,11 @@ These optional scripts follow the **same order** as the tables below. They print
 | Script | Purpose |
 | --- | --- |
 | [`aws/deploy_all_aws.py`](../aws/deploy_all_aws.py) | Full **create** path: SageMaker → … → enterprise (skippable range via CLI). **Guide 3 (S3 Vectors)** is an **interactive pause** (console work) unless you pass **`--skip-vectors-prompt`** when the vector bucket already exists. Step **9** runs the existing [`scripts/deploy.py`](../scripts/deploy.py) (Guide 7 only). |
-| [`aws/destroy_all_aws.py`](../aws/destroy_all_aws.py) | Full **Terraform teardown** in safe order (`8_enterprise` → `2_sagemaker`). Requires `--yes`. Does **not** delete S3 Vector buckets or Guide 1 IAM (console). Empties the **Part 7** frontend S3 bucket before destroy (same idea as `scripts/destroy.py`). |
-| [`aws/test_all_aws.py`](../aws/test_all_aws.py) | **Read-only checks** after deploy (Terraform outputs + `aws` CLI). Optional stack `8_enterprise` skipped if not applied. Use guide `test_full.py` scripts for functional agent/API tests. |
+| [`aws/destroy_all_aws.py`](../aws/destroy_all_aws.py) | Full **Terraform teardown** in safe order (`8_enterprise` → `2_sagemaker`). Requires `--yes`. Uses the same AWS credential chain as deploy. Does **not** delete S3 Vector buckets or optional Guide 1 IAM (console). Empties the **Part 7** frontend S3 bucket before destroy (same idea as `scripts/destroy.py`). |
+| [`aws/validate_deploy_aws.py`](../aws/validate_deploy_aws.py) | **Read-only checks** after deploy (Terraform outputs + `aws` CLI). Optional stack `8_enterprise` skipped if not applied. Use guide `test_full.py` scripts for functional agent/API tests. |
+| [`aws/validate_destroy_aws.py`](../aws/validate_destroy_aws.py) | **Read-only checks after destroy**: expects course-named resources to be **absent** in the default AWS region (Lambdas, SQS, RDS, SageMaker, S3 buckets, ECR, App Runner, HTTP API, CloudFront by comment, EventBridge, CloudWatch dashboards). **Not** S3 Vector buckets (console). Complements `destroy_all_aws.py`; does **not** replace Cost Explorer for billing lag. |
 
-**How to run:** `cd aws && uv sync && uv run python deploy_all_aws.py --help` (same pattern for `destroy_all_aws.py` and `test_all_aws.py`).
+**How to run:** `cd aws && uv sync && uv run python deploy_all_aws.py --help` (same pattern for `destroy_all_aws.py`, `validate_deploy_aws.py`, and `validate_destroy_aws.py`).
 
 ### How this compares to `scripts/deploy.py` and `scripts/destroy.py`
 
@@ -53,7 +54,7 @@ Copy `terraform.tfvars.example` → `terraform.tfvars` and edit **before** each 
 
 | Step | AWS resources (what you get) | Commands (run in order) | Description |
 | --- | --- | --- | --- |
-| 1 | **IAM** policies / group for the course user | Follow [`guides/1_permissions.md`](../guides/1_permissions.md) in the **AWS Console** | Grants AWS APIs for later Terraform and runtime services. Not in `terraform/`. |
+| 1 | **IAM** policies / group (course “AlexAccess” path) | Follow [`guides/1_permissions.md`](../guides/1_permissions.md) in the **AWS Console** | **Optional** if you already run Terraform as a principal with sufficient access (e.g. **account root** in a personal sandbox, or an org admin role). Not in `terraform/`; nothing in `aws/deploy_all_aws.py` or `aws/destroy_all_aws.py` creates this. |
 | 2 | **SageMaker** serverless embedding endpoint + execution role | `cd terraform/2_sagemaker`<br>`cp terraform.tfvars.example terraform.tfvars`<br>`terraform init`<br>`terraform apply` | Embeddings used by ingest Lambda ([`guides/2_sagemaker.md`](../guides/2_sagemaker.md)). Save endpoint name into root `.env` and set `sagemaker_endpoint_name` in **Step 4** `terraform.tfvars` to match (default is often `alex-embedding-endpoint`). |
 | 3 | **S3 Vectors** bucket + vector index | **AWS Console** → S3 → **Vector buckets** (see [`guides/3_ingest.md`](../guides/3_ingest.md)) | Separate from normal S3; create **before** research/ingest writes vectors. Bucket name must match what you put in `.env` / later stacks (e.g. `alex-vectors-<account-id>`). |
 | 4 | **Ingest** Lambda, **HTTP API Gateway**, usage plan / **API key**, IAM | `cd backend/ingest`<br>`uv run package.py`<br>`cd ../../terraform/3_ingestion`<br>`cp terraform.tfvars.example terraform.tfvars`<br>`terraform init`<br>`terraform apply` | **Depends on:** Step **2** (endpoint name in `terraform.tfvars`). Packages zip, then Terraform deploys ingest + API ([`guides/3_ingest.md`](../guides/3_ingest.md)). Put `ALEX_API_ENDPOINT`, `ALEX_API_KEY`, `VECTOR_BUCKET` into root `.env` for Researcher and local tests. |
@@ -87,7 +88,7 @@ Default order: remove **user-facing / dependent** stacks first, then **database*
 | 6 | **Ingest** Lambda, ingest **API Gateway**, API key resources, IAM | `cd terraform/3_ingestion`<br>`terraform destroy` | Removes ingest HTTP API ([`guides/3_ingest.md`](../guides/3_ingest.md)). **Before** Step **7** (SageMaker) because ingest invokes the embedding endpoint. |
 | 7 | **SageMaker** endpoint + model + roles | `cd terraform/2_sagemaker`<br>`terraform destroy` | Removes embedding endpoint ([`guides/2_sagemaker.md`](../guides/2_sagemaker.md)). |
 | 8 | **S3 Vectors** bucket + indexes | **AWS Console** → Vector buckets → delete | **Not** deleted by `terraform/3_ingestion` destroy; must be removed manually ([`guides/3_ingest.md`](../guides/3_ingest.md)). |
-| 9 | **IAM** group/policies from Guide 1 | **AWS Console** (optional) | Optional cleanup of course IAM ([`guides/1_permissions.md`](../guides/1_permissions.md)). |
+| 9 | **IAM** group/policies from Guide 1 | **AWS Console** (optional) | Only if you created them in Step 1. Skip if you never set up Guide 1 (e.g. you only used root). |
 
 ---
 

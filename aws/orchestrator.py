@@ -22,25 +22,29 @@ def run(
     cwd: Path | None = None,
     check: bool = True,
     capture: bool = False,
+    env_overrides: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess | str | None:
     """Run a command; echo it. If capture=True, return stdout (stripped) or None on failure when check=False."""
     display = " ".join(cmd)
     print(f"\n  ▶ {display}")
     if cwd:
         print(f"     (cwd: {cwd})")
+    env = os.environ.copy()
+    if env_overrides:
+        env.update(env_overrides)
     if capture:
         r = subprocess.run(
             cmd,
             cwd=cwd,
             capture_output=True,
             text=True,
-            env=os.environ.copy(),
+            env=env,
         )
         if check and r.returncode != 0:
             print(r.stderr or r.stdout, file=sys.stderr)
             raise subprocess.CalledProcessError(r.returncode, cmd, r.stdout, r.stderr)
         return (r.stdout or "").strip() if r.returncode == 0 else None
-    r = subprocess.run(cmd, cwd=cwd, env=os.environ.copy())
+    r = subprocess.run(cmd, cwd=cwd, env=env)
     if check and r.returncode != 0:
         raise subprocess.CalledProcessError(r.returncode, cmd)
     return r
@@ -153,6 +157,13 @@ def get_terraform_raw_output(tf_dir: Path, name: str) -> str | None:
 def check_tools(*, require_docker: bool = True, require_npm: bool = False) -> None:
     for bin_name in ("terraform", "aws", "uv"):
         run([bin_name, "--version"], capture=True)
+    ident = run(
+        ["aws", "sts", "get-caller-identity"],
+        capture=True,
+        check=False,
+    )
+    if ident:
+        print(f"  ▶ AWS caller: {ident}")
     if require_npm:
         run(["npm", "--version"], capture=True)
     if require_docker:

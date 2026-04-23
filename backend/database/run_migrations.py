@@ -9,8 +9,9 @@ from pathlib import Path
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv(override=True)
+# Load environment variables.
+# IMPORTANT: do not override explicit env vars (e.g. when orchestration passes fresh ARNs).
+load_dotenv(override=False)
 
 # Get config from environment
 cluster_arn = os.environ.get("AURORA_CLUSTER_ARN")

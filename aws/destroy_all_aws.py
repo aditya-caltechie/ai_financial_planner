@@ -7,6 +7,8 @@ Does NOT delete:
 
 Part 7 S3 bucket is emptied before destroy (same idea as scripts/destroy.py).
 
+Uses the same AWS credential chain as `terraform` / `aws` (root or IAM); does not depend on Guide 1.
+
 Usage:
   cd aws && uv run python destroy_all_aws.py --yes
   cd aws && uv run python destroy_all_aws.py --yes --sleep 10
@@ -145,6 +147,8 @@ def main() -> None:
     print("\nManual cleanup (not done by this script):")
     print("  • S3 Vector buckets + indexes — AWS Console (Guide 3)")
     print("  • Clerk / OpenAI keys — rotate or delete in vendor dashboards if desired")
+    print("\nValidate teardown (read-only):")
+    print("  cd aws && uv run python validate_destroy_aws.py")
 
 
 if __name__ == "__main__":
