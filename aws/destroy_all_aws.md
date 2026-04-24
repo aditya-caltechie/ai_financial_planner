@@ -45,26 +45,9 @@ uv run python destroy_all_aws.py --yes --destroy-researcher-terraform
 
 - **S3 Vector buckets + indexes** (console-only in this repo)
 - **Third-party vendor configuration** (Clerk / OpenAI / Polygon keys)
+- **App Runner `alex-researcher`** (by default): the service remains in AWS in a **paused** state; `validate_destroy_aws.py` may still report it as present until you delete it manually or run destroy with **`--destroy-researcher-terraform`**.
 
 So in one sentence: it’s **Terraform teardown in reverse order + best-effort bucket emptying + App Runner pause/skip for Researcher**, with a validation script available afterward.
-
----
-
-## Big picture
-
-`destroy_all_aws.py` iterates Terraform stacks in a fixed **reverse** order (dependent / expensive stacks first):
-
-```
-  → 8_enterprise
-  → 7_frontend
-  → 6_agents
-  → 5_database
-  → 4_researcher
-  → 3_ingestion
-  → 2_sagemaker
-```
-
-You can slice this chain using `--from-stack` / `--to-stack`, but the order is always preserved.
 
 ---
 
@@ -144,16 +127,6 @@ Terraform: 3_ingestion   (ingest Lambda + API Gateway + API key + IAM)
    v
 Terraform: 2_sagemaker   (embedding endpoint)
 ```
-
----
-
-## What this script does **not** destroy
-
-The script prints reminders at the end; the key items are:
-
-- **S3 Vector buckets + indexes** (Guide 3): **manual console cleanup**. These are not Terraform-managed in this repo.
-- **Third-party vendors** (Clerk / OpenAI / Polygon): keys remain in vendor dashboards.
-- **App Runner `alex-researcher`** (by default): the service remains in AWS in a **paused** state; `validate_destroy_aws.py` may still report it as present until you delete it manually or run destroy with **`--destroy-researcher-terraform`**.
 
 ---
 
