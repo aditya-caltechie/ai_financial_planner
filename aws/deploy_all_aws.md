@@ -2,9 +2,42 @@
 
 This doc describes **exactly what** [`deploy_all_aws.py`](deploy_all_aws.py) deploys, in what **sequence**, and which parts are **Terraform** vs **packaging / manual** steps.
 
-It is a narrative companion to:
-- **Master checklist**: [`docs/6_aws-deployment.md`](../docs/6_aws-deployment.md)
-- **CLI flags**: [`aws/README.md`](README.md)
+---
+
+## What this script does (high level): Infra creation + (code + artifact) deployment
+
+At a high level, `aws/deploy_all_aws.py` is an **orchestrator** that chains together:
+
+- **Terraform applies** (to create AWS infrastructure), and
+- **local build/package/deploy scripts** (to produce artifacts and push them into that infrastructure).
+
+### Terraform-created infrastructure
+
+- **`terraform/2_sagemaker`**: SageMaker embedding endpoint + IAM
+- **`terraform/3_ingestion`**: ingest Lambda + API Gateway (+ key/plan) + IAM (and related buckets)
+- **`terraform/4_researcher`**: ECR + App Runner service (+ optional scheduler)
+- **`terraform/5_database`**: Aurora + Secrets Manager secret + networking bits
+- **`terraform/6_agents`**: SQS + 5 agent Lambdas + IAM + S3 lambda-packages bucket
+- **`terraform/7_frontend`**: CloudFront + S3 website + API Gateway + `alex-api` Lambda + IAM
+- **`terraform/8_enterprise`**: CloudWatch dashboards/alarms
+
+### Non-Terraform “artifact + code deployment” steps
+
+- **Ingest**: `backend/ingest/package.py` builds the zip that `terraform/3_ingestion` deploys
+- **Researcher**: `backend/researcher/deploy.py` builds/pushes Docker image to ECR (Terraform only makes the repo + App Runner wiring)
+- **Database**: `backend/database/test_data_api.py` + `run_migrations.py` + `seed_data.py` create schema/data via the Data API (Terraform only creates the cluster/secret)
+- **Agents**: `backend/package_docker.py` builds the Lambda zip artifacts (Terraform wires them up)
+- **Frontend**: `scripts/deploy.py` builds Next.js static output, uploads to S3, invalidates CloudFront (Terraform creates CF/S3/API)
+
+### The biggest “missing piece” (not automated by Terraform)
+
+- **S3 Vector bucket + index**: the script pauses at the **`vectors`** step because that’s manual in the AWS console in this repo. Everything else assumes you created it and then put its name into `.env` / `terraform/6_agents/terraform.tfvars`.
+
+### Other important “not created here”
+
+- **Your credentials and vendor setup**: AWS CLI auth, Bedrock model access, Clerk app config, Polygon key, OpenAI key (for tracing), etc. Those are prerequisites, not resources created by this script.
+
+So in one sentence: it’s **Infra via Terraform + Artifacts via local scripts + a couple of manual prerequisites (Vectors + vendor access/config)**, stitched together in the correct order.
 
 **NOTE** :
 - Make sure you are connected to Wired connection, else pushing image to ECR fails.

@@ -9,6 +9,47 @@ Companion docs:
 
 ---
 
+## What this script does (high level)
+
+At a high level, `aws/destroy_all_aws.py` is an **orchestrator** that tears down (most of) the Terraform-managed AWS stacks in a **safe reverse dependency order**, with a couple of special behaviors to avoid common teardown failures and preserve the Researcher App Runner service.
+
+### Terraform destroys (in order)
+
+By default it processes stacks in this order:
+
+- **`terraform/8_enterprise`**: CloudWatch dashboards/alarms/extras
+- **`terraform/7_frontend`**: CloudFront + S3 static site + API Gateway + `alex-api` Lambda + IAM  
+  - *extra:* empties the frontend S3 bucket first (best-effort)
+- **`terraform/6_agents`**: SQS + 5 agent Lambdas + IAM + S3 lambda-packages bucket
+- **`terraform/5_database`**: Aurora + Secrets Manager secret + networking bits
+- **`terraform/4_researcher`**: **special case** (see below)
+- **`terraform/3_ingestion`**: ingest Lambda + API Gateway + API key resources + IAM
+- **`terraform/2_sagemaker`**: SageMaker embedding endpoint + IAM
+
+### Special case: `4_researcher` (App Runner is paused, not deleted)
+
+By default, the script **does not destroy** `terraform/4_researcher`. Instead it:
+
+- prints a **CAPS notice** that App Runner is being preserved and reminds you about the April 30th constraint,
+- attempts `aws apprunner pause-service` for `alex-researcher`, and
+- **skips** `terraform destroy` for that stack.
+
+If you do want to fully remove the Researcher stack, run:
+
+```bash
+cd aws
+uv run python destroy_all_aws.py --yes --destroy-researcher-terraform
+```
+
+### What this script does not remove
+
+- **S3 Vector buckets + indexes** (console-only in this repo)
+- **Third-party vendor configuration** (Clerk / OpenAI / Polygon keys)
+
+So in one sentence: it’s **Terraform teardown in reverse order + best-effort bucket emptying + App Runner pause/skip for Researcher**, with a validation script available afterward.
+
+---
+
 ## Big picture
 
 `destroy_all_aws.py` iterates Terraform stacks in a fixed **reverse** order (dependent / expensive stacks first):
