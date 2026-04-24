@@ -4,7 +4,7 @@ This doc describes **exactly what** [`deploy_all_aws.py`](deploy_all_aws.py) dep
 
 ---
 
-## What this script does (high level): Infra creation + (code + artifact) deployment
+## What this script does (high level): Infra creation + (code & artifact) deployment
 
 At a high level, `aws/deploy_all_aws.py` is an **orchestrator** that chains together:
 
