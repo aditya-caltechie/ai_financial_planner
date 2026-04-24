@@ -12,7 +12,17 @@ Each part of the course has its own independent Terraform directory:
 - **`5_database/`** - Aurora Serverless v2 PostgreSQL with Data API (Guide 5)
 - **`6_agents/`** - Lambda functions for agent orchestra (Guide 6)
 - **`7_frontend/`** - API Lambda and frontend infrastructure (Guide 7)
-- **`8_observability/`** - LangFuse and monitoring setup (Guide 8)
+- **`8_enterprise/`** - CloudWatch dashboards / monitoring setup (Guide 8)
+
+Each stack directory also has a short human-readable explanation in **`INFRA.md`**:
+
+- `2_sagemaker/INFRA.md`
+- `3_ingestion/INFRA.md`
+- `4_researcher/INFRA.md`
+- `5_database/INFRA.md`
+- `6_agents/INFRA.md`
+- `7_frontend/INFRA.md`
+- `8_enterprise/INFRA.md`
 
 ## Key Design Decisions
 
