@@ -27,7 +27,7 @@ For billing truth, still open **AWS Billing / Cost Explorer** after a day — so
 
 **One command** (`deploy_all_aws.py`) runs the **full automated sequence** (Terraform **2 → 8**, packaging, DB migrations, then `scripts/deploy.py` for Part 7) with **logged** commands and **`terraform output`** after each apply.
 
-Terraform **cannot** create **S3 Vector** buckets (Guide 3); the script **pauses** there so you can confirm console work—or pass **`--skip-vectors-prompt`** if the vector bucket + index **already exist**. **`destroy_all_aws.py --yes`** tears down **all Terraform stacks** in safe order (not S3 Vector buckets).
+Terraform **cannot** create **S3 Vector** buckets (Guide 3); the script **pauses** there so you can confirm console work—or pass **`--skip-vectors-prompt`** if the vector bucket + index **already exist**. **`destroy_all_aws.py --yes`** tears down Terraform stacks in safe order except **`4_researcher`**: by default it **pauses** the Researcher **App Runner** service and **skips** `terraform destroy` there (use **`--destroy-researcher-terraform`** to remove that stack). S3 Vector buckets are still manual.
 
 ---
 
@@ -52,7 +52,7 @@ After you press **Enter**, the script moves on to **ingest** (package + `terrafo
 | File | Purpose |
 | --- | --- |
 | [`deploy_all_aws.py`](deploy_all_aws.py) | End-to-end **deploy** aligned with `docs/6_aws-deployment.md`: Terraform **2 → 8_enterprise** (by steps), `uv run` for ingest / researcher / DB / agents, then **`scripts/deploy.py`** for **Guide 7** (step id `part7`). Prints each command and **`terraform output -json`** after each apply. **`--sleep`** (default **15s**) between most steps. |
-| [`destroy_all_aws.py`](destroy_all_aws.py) | End-to-end **destroy** for Terraform stacks **`8_enterprise` → `2_sagemaker`**, with **`--sleep`** (default **5s**). Empties the Part 7 frontend bucket before destroying `7_frontend` (same idea as `scripts/destroy.py`). Requires **`--yes`**. |
+| [`destroy_all_aws.py`](destroy_all_aws.py) | End-to-end **destroy** for stacks **`8_enterprise` → `2_sagemaker`**, with **`--sleep`** (default **5s**). Empties the Part 7 frontend bucket before destroying `7_frontend`. **`4_researcher`**: pauses App Runner, skips Terraform destroy unless **`--destroy-researcher-terraform`**. Requires **`--yes`**. |
 | [`validate_deploy_aws.py`](validate_deploy_aws.py) | **Read-only checks after deploy**: Terraform outputs + `aws` CLI (resources **present**). Optional stack **`8_enterprise`** is **SKIP** if not deployed. |
 | [`validate_destroy_aws.py`](validate_destroy_aws.py) | **Read-only checks after destroy**: expects Alex-named resources to be **absent** in AWS (inverse of `validate_deploy_aws.py`). Does not cover S3 Vector console buckets. |
 | [`deploy_all_aws.md`](deploy_all_aws.md) | Step-by-step explanation of what `deploy_all_aws.py` deploys (Terraform vs packaging/manual), plus tables and ASCII flow. |
@@ -169,6 +169,7 @@ With **`--fail-fast`**, the script **stops immediately** on the first failing ch
 | **`--to-stack`** `ID` | Last stack in the same list. Default: **`2_sagemaker`**. Lets you destroy only part of the chain (e.g. **`--from-stack`** / **`--to-stack`** both **`7_frontend`**). |
 | **`--sleep`** `SEC` | Pause between stack destroys. Default: **`5`**. Use **`0`** to disable. |
 | **`--dry-run`** | Print the stack ids that **would** be destroyed, then exit. Does **not** require **`--yes`**. |
+| **`--destroy-researcher-terraform`** | For **`4_researcher`**, run **`terraform destroy`** (removes App Runner, ECR, scheduler, etc.). **Default:** skip Terraform destroy there and only run **`aws apprunner pause-service`** when possible. |
 
 **`--from-stack`** must be **earlier** in the fixed order than **`--to-stack`** (same as the table: 8 → 7 → … → 2).
 

@@ -35,7 +35,7 @@ You can slice this chain using `--from-stack` / `--to-stack`, but the order is a
 | `7_frontend` | `terraform/7_frontend` | CloudFront, S3 static site bucket + policy, API Gateway, `alex-api` Lambda, IAM | **Empties the frontend S3 bucket first** (best-effort) |
 | `6_agents` | `terraform/6_agents` | SQS queue + DLQ, 5 agent Lambdas, IAM, S3 lambda packages bucket | none |
 | `5_database` | `terraform/5_database` | Aurora cluster/instances, DB secret, SG/subnets as defined | none |
-| `4_researcher` | `terraform/4_researcher` | App Runner service, ECR repo, scheduler lambda/rule/role (if created) | none |
+| `4_researcher` | `terraform/4_researcher` | **Default:** App Runner **not** deleted — script runs **`aws apprunner pause-service`** (best-effort) and **skips** `terraform destroy` for this stack. With **`--destroy-researcher-terraform`**: full destroy (App Runner + ECR + scheduler, etc.). | Prints a **CAPS** notice about App Runner / April 30th; optional Terraform destroy only with flag |
 | `3_ingestion` | `terraform/3_ingestion` | ingest Lambda, API Gateway, API key resources, IAM, related buckets | none |
 | `2_sagemaker` | `terraform/2_sagemaker` | SageMaker endpoint/model/config and role/policies | none |
 
@@ -57,6 +57,17 @@ For each stack directory, it will:
 4. If `.terraform/` is missing, it prints a warning and **skips** that stack.
 5. Best-effort prints `terraform output -json` (if available).
 6. Runs `terraform init -input=false`, then `terraform destroy -input=false -auto-approve`.
+
+### Special case: `4_researcher` (App Runner — pause, do not delete by default)
+
+For stack **`4_researcher`**, the default behavior is:
+
+1. Print a **CAPS** banner (see script) explaining that **App Runner is not deleted** and that **(re)deploy may not be possible after April 30th** — **pause manually in the console** if `pause-service` fails.
+2. Resolve the service ARN from `terraform output -raw app_runner_service_id`, or from `aws apprunner list-services` (service name **`alex-researcher`**).
+3. Run **`aws apprunner pause-service --service-arn …`** (best-effort).
+4. **Skip** `terraform destroy` in `terraform/4_researcher` so the service definition and Terraform state remain.
+
+To **fully destroy** the Researcher stack (including App Runner), run destroy with **`--destroy-researcher-terraform`** (see [`aws/README.md`](README.md) CLI table).
 
 ### Special case: emptying the Part 7 frontend bucket
 
@@ -84,8 +95,8 @@ Terraform: 6_agents      (SQS + agent Lambdas + IAM + S3 lambda packages bucket)
 Terraform: 5_database    (Aurora + Secrets)
    |
    v
-Terraform: 4_researcher  (App Runner + ECR + optional scheduler)
-   |
+4_researcher (default)   (pause App Runner; SKIP terraform destroy)
+   |                        (--destroy-researcher-terraform → full Terraform destroy)
    v
 Terraform: 3_ingestion   (ingest Lambda + API Gateway + API key + IAM)
    |
@@ -101,6 +112,7 @@ The script prints reminders at the end; the key items are:
 
 - **S3 Vector buckets + indexes** (Guide 3): **manual console cleanup**. These are not Terraform-managed in this repo.
 - **Third-party vendors** (Clerk / OpenAI / Polygon): keys remain in vendor dashboards.
+- **App Runner `alex-researcher`** (by default): the service remains in AWS in a **paused** state; `validate_destroy_aws.py` may still report it as present until you delete it manually or run destroy with **`--destroy-researcher-terraform`**.
 
 ---
 
@@ -114,6 +126,8 @@ uv run python validate_destroy_aws.py
 ```
 
 This checks (read-only) for commonly named Alex resources still present (Lambdas, SQS, Aurora, SageMaker endpoint, S3 buckets, ECR, App Runner, API Gateway, CloudFront by comment, EventBridge, CloudWatch dashboards).
+
+If you used the **default** `4_researcher` behavior (pause, no Terraform destroy), a **paused** App Runner service may still appear — that is expected until you remove it or pass **`--destroy-researcher-terraform`** on a targeted destroy of `4_researcher`.
 
 ---
 

@@ -31,7 +31,7 @@ These optional scripts follow the **same order** as the tables below. They print
 | Script | Purpose |
 | --- | --- |
 | [`aws/deploy_all_aws.py`](../aws/deploy_all_aws.py) | Full **create** path: SageMaker → … → enterprise (skippable range via CLI). **Guide 3 (S3 Vectors)** is an **interactive pause** (console work) unless you pass **`--skip-vectors-prompt`** when the vector bucket already exists. Step **9** runs the existing [`scripts/deploy.py`](../scripts/deploy.py) (Guide 7 only). |
-| [`aws/destroy_all_aws.py`](../aws/destroy_all_aws.py) | Full **Terraform teardown** in safe order (`8_enterprise` → `2_sagemaker`). Requires `--yes`. Uses the same AWS credential chain as deploy. Does **not** delete S3 Vector buckets or optional Guide 1 IAM (console). Empties the **Part 7** frontend S3 bucket before destroy (same idea as `scripts/destroy.py`). |
+| [`aws/destroy_all_aws.py`](../aws/destroy_all_aws.py) | Teardown in safe order (`8_enterprise` → `2_sagemaker`). Requires `--yes`. **`4_researcher`** default: **pauses** App Runner (`pause-service`) and **skips** `terraform destroy` there; use **`--destroy-researcher-terraform`** to remove that stack. Does **not** delete S3 Vector buckets or optional Guide 1 IAM (console). Empties the **Part 7** frontend S3 bucket before destroy. |
 | [`aws/validate_deploy_aws.py`](../aws/validate_deploy_aws.py) | **Read-only checks** after deploy (Terraform outputs + `aws` CLI). Optional stack `8_enterprise` skipped if not applied. Use guide `test_full.py` scripts for functional agent/API tests. |
 | [`aws/validate_destroy_aws.py`](../aws/validate_destroy_aws.py) | **Read-only checks after destroy**: expects course-named resources to be **absent** in the default AWS region (Lambdas, SQS, RDS, SageMaker, S3 buckets, ECR, App Runner, HTTP API, CloudFront by comment, EventBridge, CloudWatch dashboards). **Not** S3 Vector buckets (console). Complements `destroy_all_aws.py`; does **not** replace Cost Explorer for billing lag. |
 
@@ -44,7 +44,7 @@ These optional scripts follow the **same order** as the tables below. They print
 | **`scripts/deploy.py`** | **Only Guide 7:** packages `backend/api`, `terraform apply` in `terraform/7_frontend`, builds Next.js with production API URL, uploads `frontend/out/` to S3, invalidates CloudFront. |
 | **`scripts/destroy.py`** | **Only Guide 7:** empties the frontend S3 bucket, `terraform destroy` in `terraform/7_frontend`, deletes local `frontend/out`, `.next`, `api_lambda.zip`. |
 | **`aws/deploy_all_aws.py`** | **Full stack** from the deploy table (plus calling `scripts/deploy.py` for step **9**). |
-| **`aws/destroy_all_aws.py`** | **All Terraform directories** for the course (8 → 2), not just Part 7. |
+| **`aws/destroy_all_aws.py`** | All stacks **8 → 2**, not just Part 7; **`4_researcher`** is pause/skip by default (see script flags). |
 
 ---
 
