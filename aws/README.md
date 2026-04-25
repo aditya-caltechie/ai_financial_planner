@@ -2,49 +2,6 @@
 
 Full-stack automation for Alex lives here and in [`docs/6_aws-deployment.md`](../docs/6_aws-deployment.md).
 
-### AWS credentials (root user, IAM user, or SSO)
-
-`deploy_all_aws.py`, `destroy_all_aws.py`, `validate_deploy_aws.py`, and `validate_destroy_aws.py` only require a working **`aws` CLI** profile (or environment variables) the same way manual `terraform apply` / `terraform destroy` would. They do **not** create or assume a course IAM user, and they do **not** read Guide 1.
-
-If you use the **account root user** for access keys or console-only work, Terraform and these scripts behave the same as with any other principal: whatever passes `aws sts get-caller-identity` is what AWS bills and authorizes. **[Guide 1](../guides/1_permissions.md) (AlexAccess group, etc.) is optional** in that case, because root already has full account access. AWS recommends moving to a **least-privilege IAM user or role** for day-to-day use once you leave a tight learning sandbox.
-
-At startup, `check_tools()` prints **`aws sts get-caller-identity`** when it succeeds so you can confirm which identity is running deploy or destroy.
-
-### After destroy — did AWS really go quiet?
-
-**`validate_deploy_aws.py`** checks that resources **exist** (post-deploy validation). It is the wrong tool right after **`destroy_all_aws.py`**.
-
-Use **`validate_destroy_aws.py`** instead: read-only `aws` CLI checks that named Alex resources (Lambdas, SQS, Aurora, SageMaker endpoint, S3 buckets, ECR, App Runner, API Gateway, CloudFront, EventBridge, CloudWatch dashboards) are **gone** in your default region. It does **not** inspect S3 **Vector** buckets (console-only); the script prints the same reminder as destroy.
-
-```bash
-cd aws && uv run python validate_destroy_aws.py
-cd aws && uv run python validate_destroy_aws.py --region eu-west-1   # if you deployed there
-```
-
-For billing truth, still open **AWS Billing / Cost Explorer** after a day — some charges lag.
-
----
-
-**One command** (`deploy_all_aws.py`) runs the **full automated sequence** (Terraform **2 → 8**, packaging, DB migrations, then `scripts/deploy.py` for Part 7) with **logged** commands and **`terraform output`** after each apply.
-
-Terraform **cannot** create **S3 Vector** buckets (Guide 3); the script **pauses** there so you can confirm console work—or pass **`--skip-vectors-prompt`** if the vector bucket + index **already exist**. **`destroy_all_aws.py --yes`** tears down Terraform stacks in safe order except **`4_researcher`**: by default it **pauses** the Researcher **App Runner** service and **skips** `terraform destroy` there (use **`--destroy-researcher-terraform`** to remove that stack). S3 Vector buckets are still manual.
-
----
-
-## S3 Vectors (manual in AWS) — what the deploy script does
-
-**You must create the S3 *Vector* bucket and index yourself** in the AWS Console. This repo’s Terraform does **not** provision vector buckets (they live under S3 → **Vector buckets**, not a normal S3 bucket).
-
-When `deploy_all_aws.py` reaches the **`vectors`** step, it will:
-
-1. **Print** that you need the console and point you at **[`guides/3_ingest.md`](../guides/3_ingest.md)** (same steps as the guide: create vector bucket, create index, naming like `alex-vectors-<account-id>`, index `financial-research`, dimension **384**, metric **Cosine**, etc.).
-2. **Remind** you to put **`VECTOR_BUCKET`** (and related values) in the root **`.env`** and in **`terraform/6_agents/terraform.tfvars`** as the guide describes before later steps need them.
-3. **Wait** in the terminal until you press **Enter** (that is your “continue”: there is no separate UI button—it is normal stdin after you finish in the browser).
-
-After you press **Enter**, the script moves on to **ingest** (package + `terraform/3_ingestion`).
-
-**Re-runs / automation:** If the vector bucket and index **already exist**, start deploy with **`--skip-vectors-prompt`** so the script does **not** wait for Enter on that step.
-
 ---
 
 ## What was added: `aws/` orchestration
@@ -213,5 +170,50 @@ FYI:
 | --- | --- | --- |
 | [`scripts/deploy.py`](../scripts/deploy.py) | Packages `backend/api`, runs `terraform/7_frontend`, builds Next.js, uploads `frontend/out/` to S3, invalidates CloudFront. | **No** — only **Part 7** (frontend + API). |
 | [`scripts/destroy.py`](../scripts/destroy.py) | Empties the Part 7 frontend S3 bucket, runs `terraform destroy` in `terraform/7_frontend`, removes some local build artifacts. | **No** — only **Part 7** teardown. |
+
+---
+
+### AWS credentials (root user, IAM user, or SSO)
+
+`deploy_all_aws.py`, `destroy_all_aws.py`, `validate_deploy_aws.py`, and `validate_destroy_aws.py` only require a working **`aws` CLI** profile (or environment variables) the same way manual `terraform apply` / `terraform destroy` would. They do **not** create or assume a course IAM user, and they do **not** read Guide 1.
+
+If you use the **account root user** for access keys or console-only work, Terraform and these scripts behave the same as with any other principal: whatever passes `aws sts get-caller-identity` is what AWS bills and authorizes. **[Guide 1](../guides/1_permissions.md) (AlexAccess group, etc.) is optional** in that case, because root already has full account access. AWS recommends moving to a **least-privilege IAM user or role** for day-to-day use once you leave a tight learning sandbox.
+
+At startup, `check_tools()` prints **`aws sts get-caller-identity`** when it succeeds so you can confirm which identity is running deploy or destroy.
+
+### After destroy — did AWS really go quiet?
+
+**`validate_deploy_aws.py`** checks that resources **exist** (post-deploy validation). It is the wrong tool right after **`destroy_all_aws.py`**.
+
+Use **`validate_destroy_aws.py`** instead: read-only `aws` CLI checks that named Alex resources (Lambdas, SQS, Aurora, SageMaker endpoint, S3 buckets, ECR, App Runner, API Gateway, CloudFront, EventBridge, CloudWatch dashboards) are **gone** in your default region. It does **not** inspect S3 **Vector** buckets (console-only); the script prints the same reminder as destroy.
+
+```bash
+cd aws && uv run python validate_destroy_aws.py
+cd aws && uv run python validate_destroy_aws.py --region eu-west-1   # if you deployed there
+```
+
+For billing truth, still open **AWS Billing / Cost Explorer** after a day — some charges lag.
+
+---
+
+**One command** (`deploy_all_aws.py`) runs the **full automated sequence** (Terraform **2 → 8**, packaging, DB migrations, then `scripts/deploy.py` for Part 7) with **logged** commands and **`terraform output`** after each apply.
+
+Terraform **cannot** create **S3 Vector** buckets (Guide 3); the script **pauses** there so you can confirm console work—or pass **`--skip-vectors-prompt`** if the vector bucket + index **already exist**. **`destroy_all_aws.py --yes`** tears down Terraform stacks in safe order except **`4_researcher`**: by default it **pauses** the Researcher **App Runner** service and **skips** `terraform destroy` there (use **`--destroy-researcher-terraform`** to remove that stack). S3 Vector buckets are still manual.
+
+---
+
+## S3 Vectors (manual in AWS) — what the deploy script does
+
+**You must create the S3 *Vector* bucket and index yourself** in the AWS Console. This repo’s Terraform does **not** provision vector buckets (they live under S3 → **Vector buckets**, not a normal S3 bucket).
+
+When `deploy_all_aws.py` reaches the **`vectors`** step, it will:
+
+1. **Print** that you need the console and point you at **[`guides/3_ingest.md`](../guides/3_ingest.md)** (same steps as the guide: create vector bucket, create index, naming like `alex-vectors-<account-id>`, index `financial-research`, dimension **384**, metric **Cosine**, etc.).
+2. **Remind** you to put **`VECTOR_BUCKET`** (and related values) in the root **`.env`** and in **`terraform/6_agents/terraform.tfvars`** as the guide describes before later steps need them.
+3. **Wait** in the terminal until you press **Enter** (that is your “continue”: there is no separate UI button—it is normal stdin after you finish in the browser).
+
+After you press **Enter**, the script moves on to **ingest** (package + `terraform/3_ingestion`).
+
+**Re-runs / automation:** If the vector bucket and index **already exist**, start deploy with **`--skip-vectors-prompt`** so the script does **not** wait for Enter on that step.
 
 ---

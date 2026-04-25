@@ -239,21 +239,38 @@ cd backend/researcher && uv run test_research.py
 
 Always use **`uv run …`** inside the relevant `backend/<package>` directory.
 
-### Deploying to AWS (single scripts in `aws/`)
+### Cloud deployment (`aws/` orchestration)
 
-After you have **AWS CLI**, **Terraform**, **Docker**, **uv**, **npm**, and the **per-guide** files in place (`terraform/*/terraform.tfvars`, root **`.env`**, Clerk vars for Part 7, S3 **Vector** bucket in the console per Guide 3), you can drive the **whole Terraform path** from one place:
+After you have **AWS CLI**, **Terraform**, **Docker**, **uv**, **npm**, and the **per-guide** files in place (`terraform/*/terraform.tfvars`, root **`.env`**, Clerk vars for Part 7, S3 **Vector** bucket + index in the console per Guide 3), you can drive the **full stack** from the **`aws/`** uv project.
 
-| Goal | Command (from repo root) |
+From the repo root:
+
+```bash
+cd aws && uv sync
+
+uv run python deploy_all_aws.py --help
+uv run python deploy_all_aws.py --sleep 20
+uv run python deploy_all_aws.py --skip-vectors-prompt --sleep 20
+
+uv run python destroy_all_aws.py --dry-run
+uv run python destroy_all_aws.py --yes
+
+uv run python validate_deploy_aws.py
+uv run python validate_deploy_aws.py --fail-fast
+
+uv run python validate_destroy_aws.py
+uv run python validate_destroy_aws.py --fail-fast
+```
+
+| Goal | One-liner (from repo root, after `cd aws && uv sync`) |
 | --- | --- |
-| **Deploy everything** (SageMaker → … → optional enterprise; Part 7 runs `scripts/deploy.py` inside the flow) | `cd aws && uv sync && uv run python deploy_all_aws.py` |
-| **Destroy all Terraform stacks** (safe order: enterprise → … → SageMaker) | `cd aws && uv run python destroy_all_aws.py --yes` |
-| **Dry-run** (list steps / stacks only) | `cd aws && uv run python deploy_all_aws.py --dry-run` or `cd aws && uv run python destroy_all_aws.py --dry-run` |
+| **Deploy everything** (SageMaker → … → optional enterprise; Part 7 runs `scripts/deploy.py` inside the flow) | `uv run python deploy_all_aws.py` |
+| **Destroy Terraform stacks** (safe order; see `aws/README.md` for `4_researcher` pause vs full destroy) | `uv run python destroy_all_aws.py --yes` |
+| **Dry-run** (list steps / stacks only) | `uv run python deploy_all_aws.py --dry-run` or `uv run python destroy_all_aws.py --dry-run` |
 
-**Details, every CLI flag, partial runs, and caveats** (S3 Vectors pause, `--skip-vectors-prompt`, `--from-step`, cost notes): **[aws/README.md](aws/README.md)**. **Master checklist and stack order:** **[docs/6_aws-deployment.md](docs/6_aws-deployment.md)**.
+**Details, every CLI flag, partial runs, and caveats** (S3 Vectors pause, `--skip-vectors-prompt`, `--from-step`, `4_researcher` / App Runner, cost notes): **[aws/README.md](aws/README.md)**. **Per-stack Terraform explainer:** each `terraform/<stack>/INFRA.md`. **Master checklist and stack order:** **[docs/6_aws-deployment.md](docs/6_aws-deployment.md)**.
 
 **Still manual:** S3 **Vector** buckets and indexes (Guide 3) are not deleted by `destroy_all_aws.py` — remove them in the AWS console if you want that cost gone.
-
-**After deploy / destroy (read-only checks):** `uv run python validate_deploy_aws.py` and `uv run python validate_destroy_aws.py` (see `aws/README.md`).
 
 You can always follow the **guides** step-by-step with `terraform apply` per directory instead; `scripts/deploy.py` / `scripts/destroy.py` remain **Guide 7 only** (frontend + API + S3 upload), which `deploy_all_aws.py` invokes as the **`part7`** step.
 
