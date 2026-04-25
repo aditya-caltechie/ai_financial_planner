@@ -10,6 +10,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from decimal import Decimal
 import uuid
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,8 +30,13 @@ from src.schemas import (
     JobType, JobStatus
 )
 
-# Load environment variables
-load_dotenv(override=True)
+# Load environment variables.
+# In local dev, `scripts/run_local.py` starts the backend with `cwd=backend/api`,
+# so we must explicitly load the repo root `.env` (Guide 7) instead of relying on CWD.
+_REPO_ROOT_ENV = Path(__file__).resolve().parents[2] / ".env"
+load_dotenv(dotenv_path=_REPO_ROOT_ENV, override=False)
+# Also allow optional backend/api `.env` for local overrides.
+load_dotenv(override=False)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

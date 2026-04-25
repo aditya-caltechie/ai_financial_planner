@@ -107,7 +107,7 @@ def start_backend():
         ["uv", "run", "main.py"],
         cwd=backend_dir,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stderr=subprocess.STDOUT,  # Combine stderr with stdout so tracebacks are visible
         text=True,
         bufsize=1
     )
