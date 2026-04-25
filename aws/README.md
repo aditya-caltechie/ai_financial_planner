@@ -20,6 +20,78 @@ Full-stack automation for Alex lives here and in [`docs/6_aws-deployment.md`](..
 
 ---
 
+## Architecture diagram (crisp)
+
+This is the same multi-agent architecture as the course diagram, but rendered as text so it stays sharp in Markdown.
+
+```mermaid
+flowchart TB
+  %% Left: user-facing request path
+  CF["Frontend\nCloudFront distribution\nS3"] --> APIGW["API\nAPI Gateway"] --> API["Backend\nAPI\nLambda"] --> SQS["Queue\nSQS"] --> PLANNER["Planner\nLambda"]
+
+  %% Planner fans out to specialists
+  PLANNER --> TAGGER["Tagger\nLambda"]
+  PLANNER --> REPORTER["Reporter\nLambda"]
+  PLANNER --> CHARTER["Charter\nLambda"]
+  PLANNER --> RETIREMENT["Retirement\nLambda"]
+
+  %% Shared dependencies for the agent group
+  BEDROCK_LEFT["Frontier\nModel\nBedrock"]
+  AURORA["Database\nAurora\nServerless v2"]
+
+  TAGGER --> BEDROCK_LEFT
+  REPORTER --> BEDROCK_LEFT
+  CHARTER --> BEDROCK_LEFT
+  RETIREMENT --> BEDROCK_LEFT
+
+  TAGGER --> AURORA
+  REPORTER --> AURORA
+  CHARTER --> AURORA
+  RETIREMENT --> AURORA
+
+  %% Right: research/ingest/vector lane
+  SCHED["Scheduler\nLambda"] --> RESEARCHER["Researcher\nAppRunner"]
+  BEDROCK_RIGHT["Frontier\nModel\nBedrock"]
+  OSS_EMBED["Open-Source\nModel\nSageMaker"]
+  INGEST["Ingest\nLambda"]
+  VSTORE["Vector Store\nS3 Vectors"]
+
+  RESEARCHER <--> BEDROCK_RIGHT
+  RESEARCHER --> INGEST
+  INGEST <--> VSTORE
+  INGEST <--> OSS_EMBED
+
+  %% Styling (approximate the course colors)
+  classDef orange fill:#f59e0b,stroke:#b45309,color:#111827;
+  classDef blue fill:#93c5fd,stroke:#1d4ed8,color:#111827;
+  classDef purple fill:#c4b5fd,stroke:#6d28d9,color:#111827;
+
+  class CF,APIGW,API,SQS orange;
+  class PLANNER,TAGGER,REPORTER,CHARTER,RETIREMENT,SCHED,RESEARCHER,INGEST,VSTORE blue;
+  class BEDROCK_LEFT,BEDROCK_RIGHT,OSS_EMBED,AURORA purple;
+```
+
+ASCII fallback (if your Markdown viewer doesn’t render Mermaid):
+
+```text
+Frontend (CloudFront/S3) -> API Gateway -> Backend API (Lambda) -> SQS -> Planner (Lambda)
+                                                         |
+                                                         +-> Tagger (Lambda) ----\
+                                                         +-> Reporter (Lambda) ---+-> Bedrock (Frontier Model)
+                                                         +-> Charter (Lambda) ----/
+                                                         +-> Retirement (Lambda) -/
+                                                         |
+                                                         +-> Aurora (Database, Serverless v2)
+
+Scheduler (Lambda) -> Researcher (AppRunner) <-> Bedrock (Frontier Model)
+                         |
+                         v
+                     Ingest (Lambda) <-> Vector Store (S3 Vectors)
+                         ^
+                         |
+          SageMaker (Open-Source Embedding Model)
+```
+
 ## Commands
 
 From this directory:
