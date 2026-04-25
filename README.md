@@ -253,7 +253,7 @@ uv run python deploy_all_aws.py --sleep 20   # Takes ~30 mins for full deploymen
 uv run python validate_deploy_aws.py
 
 # Destroy
-uv run python destroy_all_aws.py --yes
+uv run python destroy_all_aws.py --yes # Takes ~15 mins for full destroy.
 uv run python validate_destroy_aws.py
 ```
 
