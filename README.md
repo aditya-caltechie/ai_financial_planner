@@ -243,23 +243,18 @@ Always use **`uv run …`** inside the relevant `backend/<package>` directory.
 
 After you have **AWS CLI**, **Terraform**, **Docker**, **uv**, **npm**, and the **per-guide** files in place (`terraform/*/terraform.tfvars`, root **`.env`**, Clerk vars for Part 7, S3 **Vector** bucket + index in the console per Guide 3), you can drive the **full stack** from the **`aws/`** uv project.
 
-From the repo root:
+From the repo root. Quick commands/scripts:
 
 ```bash
 cd aws && uv sync
 
-uv run python deploy_all_aws.py --help
+# Deploy
 uv run python deploy_all_aws.py --sleep 20   # Takes ~30 mins for full deployment. Needs Wired Connection
-uv run python deploy_all_aws.py --skip-vectors-prompt --sleep 20
-
-uv run python destroy_all_aws.py --dry-run
-uv run python destroy_all_aws.py --yes
-
 uv run python validate_deploy_aws.py
-uv run python validate_deploy_aws.py --fail-fast
 
+# Destroy
+uv run python destroy_all_aws.py --yes
 uv run python validate_destroy_aws.py
-uv run python validate_destroy_aws.py --fail-fast
 ```
 
 | Goal | One-liner (from repo root, after `cd aws && uv sync`) |
