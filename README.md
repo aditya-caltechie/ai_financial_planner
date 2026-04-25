@@ -249,7 +249,7 @@ From the repo root:
 cd aws && uv sync
 
 uv run python deploy_all_aws.py --help
-uv run python deploy_all_aws.py --sleep 20
+uv run python deploy_all_aws.py --sleep 20   # Note: Takes around ~30 mins for full deployment. Needs Wired Connection
 uv run python deploy_all_aws.py --skip-vectors-prompt --sleep 20
 
 uv run python destroy_all_aws.py --dry-run
