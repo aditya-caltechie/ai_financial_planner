@@ -52,6 +52,143 @@ def main():
     print(f"AWS Account: {account_id}")
     print(f"Region: {region}")
 
+    # If the App Runner service already exists and is PAUSED, just resume it.
+    # This supports the "keep service paused to avoid redeploy" workflow.
+    services = run_command(
+        [
+            "aws",
+            "apprunner",
+            "list-services",
+            "--region",
+            region,
+            "--query",
+            "ServiceSummaryList[?ServiceName=='alex-researcher'].ServiceArn",
+            "--output",
+            "json",
+        ],
+        capture_output=True,
+    )
+    service_arn: str | None = None
+    if services:
+        try:
+            arns = json.loads(services)
+            service_arn = arns[0] if arns else None
+        except Exception:
+            service_arn = None
+
+    if service_arn:
+        status = run_command(
+            [
+                "aws",
+                "apprunner",
+                "describe-service",
+                "--service-arn",
+                service_arn,
+                "--region",
+                region,
+                "--query",
+                "Service.Status",
+                "--output",
+                "text",
+            ],
+            capture_output=True,
+        ).strip()
+
+        if status == "RUNNING":
+            service_url = run_command(
+                [
+                    "aws",
+                    "apprunner",
+                    "describe-service",
+                    "--service-arn",
+                    service_arn,
+                    "--region",
+                    region,
+                    "--query",
+                    "Service.ServiceUrl",
+                    "--output",
+                    "text",
+                ],
+                capture_output=True,
+            )
+            print("\n✅ Service already running. Skipping image build/push and update.")
+            if service_url:
+                print(f"\n🚀 Your service is available at:")
+                print(f"   https://{service_url.strip()}")
+                print(f"\nTest it with:")
+                print(f"   curl https://{service_url.strip()}/health")
+            return
+
+        if status == "PAUSED":
+            print(f"\nService is PAUSED. Resuming App Runner service: {service_arn}")
+            run_command(
+                [
+                    "aws",
+                    "apprunner",
+                    "resume-service",
+                    "--service-arn",
+                    service_arn,
+                    "--region",
+                    region,
+                ]
+            )
+
+            print("Waiting for service to become RUNNING...")
+            import time
+
+            max_attempts = 120  # 10 minutes with 5-second intervals
+            for attempts in range(max_attempts):
+                new_status = run_command(
+                    [
+                        "aws",
+                        "apprunner",
+                        "describe-service",
+                        "--service-arn",
+                        service_arn,
+                        "--region",
+                        region,
+                        "--query",
+                        "Service.Status",
+                        "--output",
+                        "text",
+                    ],
+                    capture_output=True,
+                ).strip()
+
+                if new_status == "RUNNING":
+                    service_url = run_command(
+                        [
+                            "aws",
+                            "apprunner",
+                            "describe-service",
+                            "--service-arn",
+                            service_arn,
+                            "--region",
+                            region,
+                            "--query",
+                            "Service.ServiceUrl",
+                            "--output",
+                            "text",
+                        ],
+                        capture_output=True,
+                    )
+                    print("\n✅ Service resumed and running.")
+                    if service_url:
+                        print(f"\n🚀 Your service is available at:")
+                        print(f"   https://{service_url.strip()}")
+                        print(f"\nTest it with:")
+                        print(f"   curl https://{service_url.strip()}/health")
+                    return
+
+                if attempts > 0 and attempts % 6 == 0:
+                    elapsed_minutes = (attempts * 5) / 60
+                    print(f"  ...still resuming ({elapsed_minutes:.1f} minutes elapsed)")
+                time.sleep(5)
+
+            print("\n⚠️ Service resume is taking longer than expected.")
+            print("Check the status in the AWS Console (App Runner).")
+            return
+
     # Get ECR repository URL from Terraform
     print("\nGetting ECR repository URL...")
     terraform_dir = Path(__file__).parent.parent.parent / "terraform" / "4_researcher"

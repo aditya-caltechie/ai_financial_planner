@@ -2,6 +2,15 @@
 
 This doc describes **exactly what** [`deploy_all_aws.py`](deploy_all_aws.py) deploys, in what **sequence**, and which parts are **Terraform** vs **packaging / manual** steps.
 
+> **Before you run this (assumptions & caveats)**  
+> - **S3 Vectors is manual**: Terraform in this repo **cannot** create S3 *Vector* buckets/indexes. The pipeline pauses at step **`vectors`** and expects you to create the **vector bucket + index in the AWS Console** (Guide 3) and then copy names into root **`.env`** + `terraform/6_agents/terraform.tfvars`. Use **`--skip-vectors-prompt`** only if vectors are already done.  
+> - **Each Terraform stack needs `terraform.tfvars`**: every `terraform/<stack>/` directory is independent and must have its own configured `terraform.tfvars` (copied from `.example`). Missing `terraform.tfvars` is the most common reason a step can’t run.  
+> - **Local build prerequisites**: steps that build artifacts require local tools:  
+>   - **Docker** for `researcher-image`, `agents`, and `part7`  
+>   - **npm** for `part7` (Next.js build)  
+> - **AWS credentials**: the script uses whatever identity your AWS CLI is configured with (`aws sts get-caller-identity`). It doesn’t create or assume a special course IAM user.  
+> - **Researcher/App Runner behavior**: `researcher-image` calls `backend/researcher/deploy.py`, which will **resume** an existing paused `alex-researcher` service (and **skip redeploy** if it’s already running). If the service doesn’t exist, it will build/push the image for later creation by `terraform/4_researcher`.
+
 ---
 
 ## What this script does (high level): Infra creation + (code & artifact) deployment

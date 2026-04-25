@@ -2,6 +2,10 @@
 
 This doc describes **exactly what** [`destroy_all_aws.py`](destroy_all_aws.py) destroys, in what **order**, and the important safety behaviors (bucket emptying, skip rules, and what is *not* removed).
 
+> **Important:** By default this script **does not delete** the Researcher **App Runner** service (`alex-researcher`).  
+> Instead it issues `aws apprunner pause-service` (best-effort) and **skips** `terraform destroy` for `terraform/4_researcher`.  
+> This is intentional because **App Runner cannot (re)deploy after April 30th** for this course/project — pausing preserves your ability to resume later.
+
 Companion docs:
 - **CLI flags**: [`aws/README.md`](README.md)
 - **Master checklist & dependency order**: [`docs/6_aws-deployment.md`](../docs/6_aws-deployment.md)
