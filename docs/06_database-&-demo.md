@@ -324,3 +324,21 @@ Planner also invokes specialists:
 
 So yes: **two paths**, but they share the same DB because Aurora is the durable state store for both the UI and the agent pipeline.
 
+---
+
+Local deployment:
+```
+cd scripts
+uv sync
+uv run run_local.py
+```
+Updated UI:
+
+**Landing page (`http://localhost:3000`) — “Market snapshot” table**
+
+<img src="./assets/local-landing-market-snapshot.png" alt="Local landing page showing the Market snapshot stock price table" width="675" style="max-width: 100%; height: auto;" />
+
+**FastAPI docs (`http://localhost:8000/docs`) — Swagger UI**
+
+<img src="./assets/local-api-swagger-docs.png" alt="Local FastAPI Swagger UI at localhost:8000/docs" width="675" style="max-width: 100%; height: auto;" />
+
