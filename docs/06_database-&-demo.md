@@ -88,14 +88,14 @@ Screenshots (Network tab) showing the endpoints being called and how they map to
   - **Browser calls** (typical): `GET /api/user`, `GET /api/accounts` (and positions per account)
   - **AWS path**: CloudFront → API Gateway → **`alex-api` Lambda** → Aurora → JSON back to UI
 
-![Dashboard network calls](../assets/dashboard-network.png)
+![Dashboard network calls](./assets/dashboard-network.png)
 
 - **Accounts**
   - **Browser calls** (typical): `GET /api/accounts`, `GET /api/accounts/{account_id}/positions`
   - **Writes** (when you edit): `POST /api/accounts`, `POST /api/positions`, `PUT /api/positions/{id}`, `DELETE /api/positions/{id}`
   - **AWS path**: CloudFront → API Gateway → **`alex-api` Lambda** → Aurora → JSON back to UI
 
-![Accounts network calls](../assets/accounts-network.png)
+![Accounts network calls](./assets/accounts-network.png)
 
 ### Path B — start analysis (Aurora + SQS + multi-agent pipeline)
 
@@ -126,27 +126,27 @@ Screenshots (Network tab) showing the endpoints being called and how they map to
   - **Browser call**: `POST /api/analyze` (creates a `jobs` row in Aurora, then sends an SQS message)
   - **AWS path**: CloudFront → API Gateway → **`alex-api` Lambda** → Aurora + SQS → **`alex-planner`** (SQS trigger)
 
-![Advisor Team network calls](../assets/advisor-team-network.png)
+![Advisor Team network calls](./assets/advisor-team-network.png)
 
 - **Analysis → Overview**
   - **Browser call**: `GET /api/jobs/{job_id}` (reads `jobs.*_payload` from Aurora)
   - **AWS path**: CloudFront → API Gateway → **`alex-api` Lambda** → Aurora → returns JSON for UI render
 
-![Analysis overview network calls](../assets/analysis-overview-network.png)
+![Analysis overview network calls](./assets/analysis-overview-network.png)
 
 - **Analysis → Charts**
   - **Browser call**: `GET /api/jobs/{job_id}` (reads `charts_payload`)
   - **AWS path**: CloudFront → API Gateway → **`alex-api` Lambda** → Aurora
   - **Who populated it**: **`alex-charter` Lambda** writes `jobs.charts_payload` during analysis
 
-![Analysis charts network calls](../assets/analysis-charts-network.png)
+![Analysis charts network calls](./assets/analysis-charts-network.png)
 
 - **Analysis → Retirement Projection**
   - **Browser call**: `GET /api/jobs/{job_id}` (reads `retirement_payload`)
   - **AWS path**: CloudFront → API Gateway → **`alex-api` Lambda** → Aurora
   - **Who populated it**: **`alex-retirement` Lambda** writes `jobs.retirement_payload` during analysis
 
-![Analysis retirement network calls](../assets/analysis-retirement-network.png)
+![Analysis retirement network calls](./assets/analysis-retirement-network.png)
 
 Why SQS is needed here:
 - AI analysis is **long-running** (tens of seconds to minutes) and can involve multiple Lambdas.
