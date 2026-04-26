@@ -240,4 +240,4 @@ You can always follow the **guides** step-by-step with `terraform apply` per dir
 - MLOPS - Terraform for Infra + Deployment scripts. 
 - Frontend development using Nodejs and React.
 - Full-stack development.
-- AI stack with AWS BedRock & SageMaker
+- AI stack with AWS BedRock & SageMaker. MCP Server
