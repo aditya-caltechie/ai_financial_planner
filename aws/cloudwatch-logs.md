@@ -431,3 +431,175 @@ Why SQS is needed here:
 - AI analysis is **long-running** (tens of seconds to minutes) and can involve multiple Lambdas.
 - SQS decouples the “user clicked a button” request from the background work, so the UI stays responsive and retries are handled safely.
 
+---
+
+## Database lifecycle: when Aurora gets populated (and by whom)
+
+Aurora is the **system of record** for anything the UI needs to show later: users, accounts, positions, jobs, and agent outputs.
+
+This section ties together **what writes to the DB**, **when it happens**, and **why `alex-api` must access the DB directly** for certain UI tabs.
+
+### Architecture reference (from `README.md`)
+
+This is the “big picture” view (request path + agents + research/vectors):
+
+```mermaid
+flowchart TB
+  subgraph ingest_path["Request path"]
+    CF[CloudFront + S3<br/>frontend]
+    GW[API Gateway]
+    API[Backend API<br/>Lambda]
+    Q[SQS queue]
+    CF --> GW
+    GW --> API
+    API --> Q
+  end
+
+  subgraph agents["Multi-agent execution"]
+    PL[Planner<br/>Lambda]
+    TG[Tagger]
+    RP[Reporter]
+    CH[Charter]
+    RT[Retirement]
+    Q --> PL
+    PL --> TG
+    PL --> RP
+    PL --> CH
+    PL --> RT
+  end
+
+  BR[(Amazon Bedrock)]
+  AU[(Aurora Serverless v2)]
+
+  TG --> BR
+  RP --> BR
+  CH --> BR
+  RT --> BR
+  TG --> AU
+  RP --> AU
+  CH --> AU
+  RT --> AU
+
+  subgraph research["Research and vectors"]
+    SCH[Scheduler<br/>Lambda]
+    AR[Researcher<br/>App Runner]
+    ING[Ingest<br/>Lambda]
+    SM[(SageMaker<br/>embeddings)]
+    VS[(S3 Vectors)]
+    SCH --> AR
+    AR <--> BR
+    AR --> ING
+    ING <--> SM
+    ING <--> VS
+  end
+
+  PL -.->|vector search / context| VS
+  API --> AU
+```
+
+And here’s the “Guide 7 zoom-in” showing why the API Lambda touches **both** Aurora and SQS:
+
+```mermaid
+graph TB
+    User[User Browser] -->|HTTPS| CF[CloudFront CDN]
+    CF -->|Static Files| S3[S3 Static Site]
+    CF -->|/api/*| APIG[API Gateway]
+
+    User -->|Auth| Clerk[Clerk Auth]
+    APIG -->|JWT| Lambda[API Lambda]
+
+    Lambda -->|Data API| Aurora[(Aurora DB)]
+    Lambda -->|Trigger| SQS[SQS Queue]
+
+    SQS -->|Process| Agents[AI Agents]
+    Agents -->|Results| Aurora
+
+    style CF fill:#FF9900
+    style S3 fill:#569A31
+    style Lambda fill:#FF9900
+    style Clerk fill:#6C5CE7
+```
+
+### 1) DB schema + seed data (one-time “bring the DB to life”)
+
+**Who writes:** `backend/database` scripts (run during deploy step `db-migrate`)
+
+**When:** after `terraform/5_database` creates Aurora (Part 5)
+
+**Why:** Aurora starts empty; we must create tables, indexes, and seed reference data.
+
+- Schema creation: `backend/database/run_migrations.py` (SQL migrations)
+- Seed data: `backend/database/seed_data.py` (initial instruments, etc.)
+
+### 2) First time a user signs in (user row is created)
+
+**Who writes:** `alex-api` (`GET /api/user`)
+
+**When:** first visit after Clerk sign-in (Dashboard load does this)
+
+**Why:** the UI needs a DB-backed profile (preferences like targets, years until retirement, etc.) tied to the Clerk `sub`.
+
+### 3) Accounts + positions (UI CRUD)
+
+**Who writes:** `alex-api`
+
+**When:** when you add/edit/delete accounts/positions in the **Accounts** tab or use “Populate Test Data”.
+
+**Why:** this is your portfolio “source of truth” that the analysis and charts operate on.
+
+Examples of DB-writing API actions:
+- `POST /api/accounts` (create)
+- `POST /api/positions` (create)
+- `PUT /api/positions/{id}` (update)
+- `DELETE /api/positions/{id}` (delete)
+- `POST /api/populate-test-data` (creates accounts + positions + any missing instruments)
+
+### 4) Starting analysis (job row + queue message)
+
+**Who writes:** `alex-api` + SQS
+
+**When:** you click “Start analysis” in **Advisor Team**
+
+**Why:** jobs must be durable and queryable by the UI. SQS ensures long-running work is decoupled from the HTTP request.
+
+`alex-api` does two key things:
+- inserts a new job record in Aurora (initial status `pending`)
+- sends an SQS message containing `job_id` + `clerk_user_id` + options
+
+### 5) Planner updates job status + orchestrates specialists
+
+**Who writes:** `alex-planner` (and it invokes other Lambdas)
+
+**When:** when SQS triggers Planner
+
+**Why:** the UI needs to see progress and the final results; Planner is the conductor.
+
+Planner writes:
+- job status transitions in Aurora (e.g. `pending` → `running` → `completed` / `failed`)
+
+Planner also invokes specialists:
+- Reporter (writes narrative report)
+- Charter (writes charts JSON)
+- Retirement (writes retirement projection output)
+- Tagger (only when instrument metadata is missing)
+
+### 6) Specialists write results back to Aurora (so the UI can read them)
+
+**Who writes:** `alex-reporter`, `alex-charter`, `alex-retirement` (and sometimes `alex-tagger`)
+
+**When:** during an analysis run
+
+**Why:** the UI is not “pushed” results; it **pulls** results via `GET /api/jobs/{job_id}`. So results must be stored in Aurora.
+
+### 7) When (and why) `alex-api` accesses Aurora directly
+
+`alex-api` accesses Aurora directly whenever the UI needs **immediate, consistent state**:
+- Dashboard: user profile + accounts + positions
+- Accounts: CRUD
+- Analysis: fetch job status/results
+
+`alex-api` talks to **SQS only** for:
+- starting analysis (`POST /api/analyze`) — because the heavy work must happen asynchronously
+
+So yes: **two paths**, but they share the same DB because Aurora is the durable state store for both the UI and the agent pipeline.
+
