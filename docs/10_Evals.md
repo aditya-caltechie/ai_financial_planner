@@ -35,6 +35,7 @@ RAG evals focus on the **knowledge layer**: did we find the right evidence, and 
 - **Faithfulness**: LLM-as-judge with strict rubric, or libraries that implement judge prompts + scoring.
 - **Answer relevance**: LLM-as-judge or task-specific rubric (finance apps often add domain constraints).
 
+---
 ### Agentic evals (reasoning + action)
 
 Agentic systems are closer to **loops** than one-shot pipelines: you evaluate planning, tool use, recovery, and end outcomes.
@@ -59,6 +60,7 @@ Agentic systems are closer to **loops** than one-shot pipelines: you evaluate pl
 - **Golden trajectories**: for a fixed input, assert expected tool sequence (or acceptable alternatives).
 - **State assertions**: DB rows written, job status transitions, payload schema validation (e.g., chart JSON).
 
+---
 ### Foundation / LLM evals (the “brain”)
 
 These are **model capability** evaluations *before* (or alongside) your product layer:
@@ -68,6 +70,7 @@ These are **model capability** evaluations *before* (or alongside) your product 
 
 **Why this matters even if you use Bedrock models:** you still need to know whether a model swap (or temperature change) regresses reasoning, compliance, or formatting.
 
+---
 ### Behavioral & safety evals (the “guardrail layer”)
 
 These evals measure **misuse resistance** and **policy compliance** in the **product/system** (prompting, tools, UX), not just raw model capability.
@@ -84,6 +87,7 @@ These evals measure **misuse resistance** and **policy compliance** in the **pro
 - **No secret leakage** (API keys, internal prompts, tool outputs)
 - **Stable behavior under paraphrase attacks** (same attack, different wording)
 
+---
 ### Operational & system evals (the “infrastructure”)
 
 These measure whether the system is healthy in production:
