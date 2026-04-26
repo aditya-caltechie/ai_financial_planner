@@ -99,52 +99,52 @@ These mirror the “enterprise grade” goals: scalability, security, monitoring
 ```mermaid
 flowchart TB
   subgraph client["Client"]
-    UI[Next.js static site]
-    Auth[Clerk Auth]
+    UI["Nextjs static site"]
+    AUTH["Clerk auth"]
   end
 
   subgraph edge["Edge"]
-    CF[CloudFront CDN]
+    CF["CloudFront CDN"]
   end
 
   subgraph api_layer["API layer"]
-    GW["API Gateway (HTTP API)"]
-    API["Lambda: alex-api (FastAPI)"]
+    GW["API Gateway HTTP API"]
+    API["Lambda alex api FastAPI"]
   end
 
-  subgraph state["State + async"]
-    AU[(Aurora Serverless v2 Postgres - RDS Data API)]
-    Q[SQS: analysis-jobs queue]
+  subgraph state["State and async"]
+    AU["Aurora Serverless v2 Postgres via Data API"]
+    Q["SQS analysis queue"]
   end
 
-  subgraph agents["Multi-agent execution (Lambdas)"]
-    PL[Planner (orchestrator)]
-    TG[Tagger (optional)]
-    RP[Reporter]
-    CH[Charter]
-    RT[Retirement]
+  subgraph agents["Agents"]
+    PL["Planner orchestrator"]
+    TG["Tagger optional"]
+    RP["Reporter"]
+    CH["Charter"]
+    RT["Retirement"]
   end
 
-  subgraph llm["LLM + market data"]
-    BR[(Amazon Bedrock LLM)]
-    PX[Market data provider (Polygon)]
+  subgraph llm["LLM and market data"]
+    BR["Bedrock LLM"]
+    PX["Market data"]
   end
 
-  subgraph research["Research + vectors (optional)"]
-    SCH[Scheduler Lambda / EventBridge]
-    AR[Researcher (App Runner)]
-    ING[Ingest Lambda + HTTP API]
-    SM[(SageMaker embeddings)]
-    VS[(S3 Vectors)]
+  subgraph research["Research and vectors optional"]
+    SCH["Scheduler"]
+    AR["Researcher App Runner"]
+    ING["Ingest"]
+    SM["SageMaker embeddings"]
+    VS["S3 Vectors"]
   end
 
   UI --> CF
-  UI --> Auth
+  UI --> AUTH
 
-  CF -->|/api/*| GW
+  CF -->|api| GW
   GW --> API
   API --> AU
-  API -->|Start analysis| Q
+  API -->|start analysis| Q
 
   Q --> PL
   PL --> TG
@@ -166,11 +166,11 @@ flowchart TB
   PL --> PX
 
   SCH --> AR
-  AR <--> BR
+  AR --> BR
   AR --> ING
-  ING <--> SM
-  ING <--> VS
-  PL -.->|retrieve context| VS
+  ING --> SM
+  ING --> VS
+  PL -.->|vector context| VS
 ```
 
 ---
