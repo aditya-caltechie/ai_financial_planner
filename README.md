@@ -233,6 +233,7 @@ You can always follow the **guides** step-by-step with `terraform apply` per dir
 1. Read all [docs](docs) in sequence for understanding. 
 2. Follow [guides](guides) for AWS infra setup. 
 3. Refer [backend](backend) & [frontend](frontend) code for detailed implementation.
+4. Refer [Notes](https://github.com/aditya-caltechie/ai-tutorial-notes/tree/main/mlops)
 
 ###### Focus: 
 
@@ -241,4 +242,3 @@ You can always follow the **guides** step-by-step with `terraform apply` per dir
 - Frontend development using Nodejs and React.
 - Full-stack development.
 - AI stack with AWS BedRock & SageMaker. MCP Server.
-- Refer [Notes](https://github.com/aditya-caltechie/ai-tutorial-notes/tree/main/mlops)
