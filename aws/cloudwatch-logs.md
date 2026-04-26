@@ -371,3 +371,63 @@ When something doesn’t look right in the UI:
 3. If Planner invoked specialists, tail those log groups and verify they “completed for job”.
 4. If Planner fails instantly, the error usually names the missing permission / bad ARN / missing env var (most actionable).
 
+---
+
+## Why does `alex-api` talk to Aurora sometimes, and SQS other times?
+
+It’s two intentionally different paths:
+
+- **Synchronous “CRUD / read-your-data” path (DB only)**: used for pages like **Dashboard**, **Accounts**, and **Analysis** when the UI just needs to **read/write portfolio data or fetch job results**.
+- **Asynchronous “run an AI analysis” path (DB + SQS + agent Lambdas)**: used when you click **Start analysis** on **Advisor Team**. That request must return quickly, so it **creates a job in the DB** and then **queues work to SQS** for the Planner/agents to do in the background.
+
+### Path A — synchronous API calls (Aurora via Data API)
+
+Used by endpoints like:
+- `GET /api/user`
+- `GET /api/accounts`
+- `POST /api/accounts`, `POST /api/positions`, etc.
+- `GET /api/jobs` / `GET /api/jobs/{job_id}` (read results)
+
+ASCII flow:
+
+```text
+Browser UI
+  -> CloudFront (/api/*)
+  -> API Gateway (HTTP API)
+  -> Lambda: alex-api (FastAPI)
+  -> Aurora Serverless v2 (RDS Data API)
+  <- JSON response
+  <- UI renders immediately
+```
+
+Why DB is needed here:
+- The UI is viewing/editing **stateful data**: users, accounts, positions, jobs, results.
+- That data lives in Aurora, so the API must read/write it synchronously.
+
+### Path B — start analysis (Aurora + SQS + multi-agent pipeline)
+
+Used by:
+- `POST /api/analyze`
+
+ASCII flow:
+
+```text
+Browser UI (Start analysis)
+  -> CloudFront
+  -> API Gateway
+  -> Lambda: alex-api
+       - write a new Job row to Aurora (status=pending)
+       - send SQS message with job_id + clerk_user_id + options
+  -> SQS: alex-analysis-jobs
+  -> Lambda: alex-planner (triggered by SQS)
+       - updates job status in Aurora (running/completed/failed)
+       - invokes specialist Lambdas (reporter/charter/retirement[/tagger])
+       - specialists write outputs back to Aurora
+  <- UI polls GET /api/jobs/{job_id} until completed
+  <- UI renders results
+```
+
+Why SQS is needed here:
+- AI analysis is **long-running** (tens of seconds to minutes) and can involve multiple Lambdas.
+- SQS decouples the “user clicked a button” request from the background work, so the UI stays responsive and retries are handled safely.
+
