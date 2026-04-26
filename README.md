@@ -233,3 +233,10 @@ You can always follow the **guides** step-by-step with `terraform apply` per dir
 1. Read all [docs](docs) in sequence for understanding. 
 2. Follow [guides](guides) for AWS infra setup. 
 3. Refer [backend](backend) & [frontend](frontend) code for detailed implementation.
+
+###### Focus: 
+
+- AWS Services used.
+- Teraaform for Infra. Deployment scripts. 
+- Frontend development using Nodejs and React.
+- Full-stack development.
