@@ -27,7 +27,8 @@ Alex splits into three cooperating planes: the **user request path** (static UI 
 **Background research and knowledge (Guides 3–4):** An **EventBridge**-driven **scheduler Lambda** can invoke the **Researcher** on **App Runner**, which also uses **Bedrock** (and optional web research). The Researcher pushes text through **API Gateway** into the **ingest Lambda**, which calls **SageMaker** for embeddings and writes vectors to **S3 Vectors** so the planner and agents can retrieve research context during portfolio analysis.
 
 ```mermaid
-flowchart TB
+%%{init: {"flowchart": {"nodeSpacing": 60, "rankSpacing": 90}}}%%
+flowchart LR
   subgraph ingest_path["Request path"]
     U["User browser"]
     CLERK["Clerk auth"]
