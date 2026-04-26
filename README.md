@@ -242,3 +242,6 @@ You can always follow the **guides** step-by-step with `terraform apply` per dir
 - Frontend development using Nodejs and React.
 - Full-stack development.
 - AI stack with AWS BedRock & SageMaker. MCP Server.
+- CICD (Github Actions)
+- Production [Readiness](docs/09_PRODUCTION-readiness.md) (Scaling, Security, Monitoring, Observability, GuardRails)
+- EVALs - [Agentic Evals](docs/10_EVALs.md)
