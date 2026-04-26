@@ -322,3 +322,37 @@ After you press **Enter**, the script moves on to **ingest** (package + `terrafo
 **Re-runs / automation:** If the vector bucket and index **already exist**, start deploy with **`--skip-vectors-prompt`** so the script does **not** wait for Enter on that step.
 
 ---
+
+List of all AWS services used:
+
+### AWS Console (quick visual inventory)
+
+![AWS Console - Recently visited services](assets/aws-console-recently-visited.png)
+
+### Services used (what, where, when)
+
+This table maps the **architecture diagram** above to concrete services, and points at the **repo locations** where you’ll see each service referenced.
+
+| Service | Where it shows up (architecture) | Where in this repo (examples) | When/why it’s used |
+|---|---|---|---|
+| **Amazon CloudFront** | Frontend CDN in front of S3 static site | `terraform/7_frontend/` (CloudFront + origin routing) | Serves the Next.js static export globally; routes `/api/*` to API Gateway. |
+| **Amazon S3** (static site) | Frontend origin (static Next.js output) | `frontend/out/` produced by deploy; `scripts/deploy.py`; `terraform/7_frontend/` | Hosts the frontend build artifacts; CloudFront reads from it. |
+| **Amazon API Gateway** | Edge API entrypoint | `terraform/7_frontend/` (API Gateway); `backend/api/main.py` routes are exposed as `/api/*` | Terminates HTTP and forwards to the API Lambda; throttling and CORS live here. |
+| **AWS Lambda** (API) | Backend API | `backend/api/main.py` | FastAPI service that handles user CRUD + starts analysis jobs; called by the frontend. |
+| **Amazon SQS** | Queue between API and Planner | `backend/api/main.py` (enqueue to `SQS_QUEUE_URL`); `backend/planner/lambda_handler.py` (SQS-triggered handler) | Buffers long-running work so the UI stays responsive; enables retries/DLQ/backpressure. See `docs/09_production-readiness.md` for the enterprise rationale (buffering, visibility timeout, DLQ, idempotency). |
+| **AWS Lambda** (Planner) | Orchestrator | `backend/planner/lambda_handler.py`, `backend/planner/agent.py` | SQS consumer. Updates job status, then invokes specialist Lambdas (tagger/reporter/charter/retirement). |
+| **AWS Lambda** (Tagger) | Specialist agent | `backend/tagger/` | Classifies instruments when allocations are missing; writes results to DB. |
+| **AWS Lambda** (Reporter) | Specialist agent (RAG + narrative) | `backend/reporter/lambda_handler.py`, `backend/reporter/agent.py` | Generates the report narrative; uses the S3 Vectors knowledge base via `get_market_insights`; stores report in Aurora. |
+| **AWS Lambda** (Charter) | Specialist agent (structured outputs) | `backend/charter/lambda_handler.py` | Generates chart JSON payloads; validates/parses JSON and stores results in Aurora. |
+| **AWS Lambda** (Retirement) | Specialist agent | `backend/retirement/` | Builds retirement projections; stores results in Aurora. |
+| **Amazon Aurora Serverless v2** (PostgreSQL) | Shared DB for state + results | `terraform/5_database/`; `backend/database/` and `backend/*/src/Database` usage | Primary system-of-record: users/accounts/positions/jobs plus agent outputs and job state transitions. |
+| **AWS Secrets Manager** | DB credentials (and other secrets) | `terraform/5_database/` outputs; consumed via env vars in agent Lambdas; referenced in `aws/README.md` troubleshooting (Part 5 re-deploy creates new ARN) | Keeps credentials out of code; Lambdas fetch DB secret at runtime. See `docs/09_production-readiness.md` for “no creds in code” and rotation considerations. |
+| **Amazon Bedrock** | LLM inference for agents | Agent code uses LiteLLM Bedrock models (e.g., `LitellmModel(model=f\"bedrock/{model_id}\")`) across `backend/planner/`, `backend/reporter/`, `backend/charter/`, `backend/retirement/`, `backend/tagger/` | Runs the “frontier” models for agent reasoning and generation. |
+| **Amazon SageMaker** | Embeddings endpoint | `terraform/2_sagemaker/`; embed calls in `backend/ingest/search_s3vectors.py` and `backend/reporter/agent.py` | Produces embeddings used to query S3 Vectors (and for ingest). |
+| **S3 Vectors** | Vector store | `backend/ingest/ingest_s3vectors.py`, `backend/ingest/search_s3vectors.py`, `backend/reporter/agent.py` | Stores and retrieves private knowledge chunks; used by reporter RAG tool to ground analysis. |
+| **AWS App Runner** | Researcher service | `terraform/4_researcher/`; `backend/researcher/server.py` | Hosts the autonomous “Researcher” web service (with optional scheduling); can browse web via MCP and ingest documents. |
+| **Amazon ECR** | Container registry for Researcher | `terraform/4_researcher/`; `backend/researcher/deploy.py` | Stores the Researcher container image used by App Runner. |
+| **Amazon EventBridge** (Scheduler) | Scheduled research lane | `terraform/4_researcher/` (optional schedule); diagram node “Scheduler Lambda” | Triggers periodic research runs (optional); useful for background knowledge refresh. |
+| **Amazon CloudWatch** | Logs, metrics, dashboards/alarms | All Lambdas log here; enterprise dashboards in `terraform/8_enterprise/` | Debugging + operational monitoring (errors, throttles, durations, queue depth/age, DB metrics). |
+| **AWS IAM** | Permissions for everything | Terraform IAM roles/policies in each stack | Least-privilege execution roles for Lambdas/App Runner and access to RDS Data API, SQS, Secrets, logs, etc. |
+
