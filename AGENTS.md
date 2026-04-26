@@ -1,4 +1,4 @@
-# Alex - AI in Production Course Project Guide
+# Alex - AI in Production Project Guide
 
 ## Project Overview
 
@@ -84,7 +84,7 @@ alex/
 
 ---
 
-## Course Structure: The 8 Guides
+## Directory Structure: The 8 Guides
 
 **IMPORTANT:** before working with the student, you MUST read all guides in the guides folder, in the correct order (1-8), to fully understand the project.
 

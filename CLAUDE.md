@@ -1,4 +1,4 @@
-# Alex - AI in Production Course Project Guide
+# Alex - AI in Production Project Guide
 
 ## Project Overview
 
@@ -11,6 +11,7 @@ The student has an AWS root user, and also an IAM user called "aiengineer" with 
 ### What Students Will Build
 
 Students will deploy a complete production AI system featuring:
+
 - **Multi-agent collaboration**: 5 specialized AI agents working together via orchestration
 - **Serverless architecture**: Lambda, Aurora Serverless v2, App Runner, API Gateway, SQS
 - **Cost-optimized vector storage**: S3 Vectors (90% cheaper than OpenSearch)
@@ -21,6 +22,7 @@ Students will deploy a complete production AI system featuring:
 ### Learning Objectives
 
 By completing this project, students will:
+
 1. Deploy and manage production AI infrastructure on AWS
 2. Implement multi-agent systems using the OpenAI Agents SDK
 3. Integrate AWS Bedrock (with Nova Pro model) for LLM capabilities
@@ -84,18 +86,18 @@ alex/
 
 ---
 
-## Course Structure: The 8 Guides
+## Guide Structure: The 8 Guides
 
 **IMPORTANT:** before working with the student, you MUST read all guides in the guides folder, in the correct order (1-8), to fully understand the project.
 
 ### Week 3: Research Infrastructure
 
 **Day 3 - Foundations**
+
 - **Guide 1: AWS Permissions** (1_permissions.md)
   - Set up IAM permissions for Alex project
   - Create AlexAccess group with required policies
   - Configure AWS CLI and credentials
-
 - **Guide 2: SageMaker Deployment** (2_sagemaker.md)
   - Deploy SageMaker Serverless endpoint for embeddings
   - Use HuggingFace all-MiniLM-L6-v2 model
@@ -103,6 +105,7 @@ alex/
   - Understand serverless vs always-on endpoints
 
 **Day 4 - Vector Storage**
+
 - **Guide 3: Ingestion Pipeline** (3_ingest.md)
   - Create S3 Vectors bucket (90% cost savings!)
   - Deploy Lambda function for document ingestion
@@ -110,6 +113,7 @@ alex/
   - Test document storage and search
 
 **Day 5 - Research Agent**
+
 - **Guide 4: Researcher Agent** (4_researcher.md)
   - Deploy autonomous research agent on App Runner
   - Use AWS Bedrock with Nova Pro model
@@ -120,6 +124,7 @@ alex/
 ### Week 4: Portfolio Management Platform
 
 **Day 1 - Database**
+
 - **Guide 5: Database & Infrastructure** (5_database.md)
   - Deploy Aurora Serverless v2 PostgreSQL
   - Enable Data API (no VPC complexity!)
@@ -128,6 +133,7 @@ alex/
   - Set up shared database library
 
 **Day 2 - Agent Orchestra**
+
 - **Guide 6: AI Agent Orchestra** (6_agents.md)
   - Deploy 5 Lambda agents (Planner, Tagger, Reporter, Charter, Retirement)
   - Set up SQS queue for orchestration
@@ -136,6 +142,7 @@ alex/
   - Implement parallel agent processing
 
 **Day 3 - Frontend**
+
 - **Guide 7: Frontend & API** (7_frontend.md)
   - Set up Clerk authentication
   - Deploy NextJS React frontend
@@ -144,6 +151,7 @@ alex/
   - Test portfolio management and AI analysis
 
 **Day 4 - Enterprise Features**
+
 - **Guide 8: Enterprise Grade** (8_enterprise.md)
   - Implement scalability configurations
   - Add security layers (WAF, VPC endpoints, GuardDuty)
@@ -171,6 +179,7 @@ Try to lean away from shell scripts or Powershell scripts as they are platform d
 ### 1. **Always Establish Context First**
 
 When a student asks for help:
+
 1. **Ask which guide/day they're on** - This is critical for understanding what infrastructure they have deployed
 2. **Ask what they're trying to accomplish** - Understand the goal before diving into code
 3. **Ask what error or behavior they're seeing** - Get the actual error message, not their interpretation
@@ -180,12 +189,14 @@ When a student asks for help:
 **DO NOT jump to conclusions and write lots of code before the problem is truly understood.**
 
 Common mistakes to avoid:
+
 - Writing defensive code with `isinstance()` checks before understanding the root cause
 - Adding try/except blocks that hide the real error
 - Creating workarounds that mask the actual problem
 - Making multiple changes at once (makes debugging impossible)
 
 **Instead, follow this process:**
+
 1. **Reproduce the issue** - Ask for exact error messages, logs, commands
 2. **Identify root cause** - Use CloudWatch logs, AWS Console, error traces
 3. **Verify understanding** - Explain what you think is happening and confirm with student
@@ -197,29 +208,34 @@ Common mistakes to avoid:
 Before writing any code, check these common issues:
 
 **Docker Desktop Not Running** (Most common with `package_docker.py`)
+
 - The script will fail with a generic uv warning about nested projects
 - The real issue is Docker isn't running
 - Students often get distracted by the uv warning (this was recently fixed in the script)
 - **Always ask**: "Is Docker Desktop running?"
 
 **AWS Permissions Issues** (Most common overall)
+
 - Missing IAM policies for specific AWS services
 - Region-specific permissions (especially for Bedrock inference profiles)
 - Inference profiles require permissions for MULTIPLE regions
 - **Check**: IAM policies, AWS region settings, Bedrock model access
 
 **Terraform Variables Not Set**
+
 - Each terraform directory needs its `terraform.tfvars` file configured
 - Missing or incorrect variables cause cryptic errors
 - **Check**: Does `terraform.tfvars` exist? Are all required variables set?
 
 **AWS Region Mismatches**
+
 - Bedrock models may only be available in specific regions
 - Nova Pro requires inference profiles
 - Cross-region resource access may need models to have been approved in Bedrock in multiple regions
 - **Check**: Region consistency across configuration files
 
 **Model Access Not Granted**
+
 - AWS Bedrock requires explicit model access requests
 - Nova Pro is the recommended model (Claude Sonnet has strict rate limits)
 - Access is per-region; inference profiles may require multiple regions to have access
@@ -228,6 +244,7 @@ Before writing any code, check these common issues:
 ### 4. **Current Model Strategy**
 
 **Use Nova Pro, not Claude Sonnet**
+
 - Nova Pro (`us.amazon.nova-pro-v1:0` or `eu.amazon.nova-pro-v1:0`) is the recommended model
 - Requires inference profiles for cross-region access
 - Claude Sonnet has too strict rate limits for this project
@@ -236,10 +253,12 @@ Before writing any code, check these common issues:
 ### 5. **Testing Approach**
 
 Each agent directory has two test files:
+
 - `test_simple.py` - Local testing with mocks (uses `MOCK_LAMBDAS=true`)
 - `test_full.py` - AWS deployment testing (actual Lambda invocations)
 
 Students should:
+
 1. Test locally first with `test_simple.py`
 2. Deploy with terraform/packaging
 3. Test deployment with `test_full.py`
@@ -247,6 +266,7 @@ Students should:
 ### 6. **Help Students Help Themselves**
 
 Encourage students to:
+
 - Read error messages carefully (especially CloudWatch logs)
 - Check AWS Console to verify resources exist
 - Use `terraform output` to see deployed resource details
@@ -260,11 +280,13 @@ Encourage students to:
 ### Independent Directory Architecture
 
 Each terraform directory (2_sagemaker, 3_ingestion, etc.) is **independent** with:
+
 - Its own local state file (`terraform.tfstate`)
 - Its own `terraform.tfvars` configuration
 - No dependencies on other terraform directories
 
 **This is intentional** for educational purposes:
+
 - Students can deploy incrementally, guide by guide
 - State files are local (simpler than remote S3 state)
 - Each part can be destroyed independently
@@ -278,6 +300,7 @@ Each terraform directory (2_sagemaker, 3_ingestion, etc.) is **independent** wit
 Common pattern is to use the Cursor File Explorer to copy terraform.tfvars.example to terraform.tfvars and then change the variables in each directory.
 
 If `terraform.tfvars` is missing or misconfigured:
+
 - Terraform will use default values (often wrong)
 - Resources may fail to create with cryptic errors
 - Cross-service connections will break
@@ -348,7 +371,9 @@ with trace("Reporter Agent"):
         response = result.final_output
 
 ```
+
 And later:
+
 ```python
 @function_tool
 async def get_market_insights(
@@ -357,10 +382,9 @@ async def get_market_insights(
 ...
 ```
 
-IMPORTANT: when using Bedrock through LiteLLM, LiteLLM needs this environment variable set:   
+IMPORTANT: when using Bedrock through LiteLLM, LiteLLM needs this environment variable set:  
 `os.environ["AWS_REGION_NAME"] = bedrock_region`  
-This is confusing as other services sometimes expect `"AWS_REGION"` or `"DEFAULT_AWS_REGION"`. But LiteLLM needs `AWS_REGION_NAME` as documented here: https://docs.litellm.ai/docs/providers/bedrock.
-
+This is confusing as other services sometimes expect `"AWS_REGION"` or `"DEFAULT_AWS_REGION"`. But LiteLLM needs `AWS_REGION_NAME` as documented here: [https://docs.litellm.ai/docs/providers/bedrock](https://docs.litellm.ai/docs/providers/bedrock).
 
 ---
 
@@ -375,6 +399,7 @@ The most common issues relate to AWS region choices! Check environment variables
 **Root Cause (common)**: Docker Desktop is not running or a Docker mounts denied issue
 
 **Diagnosis**:
+
 1. Ask: "Is Docker Desktop running?"
 2. Check: Can they run `docker ps` successfully?
 3. Recent fix: The script now gives better error messages, but older versions were misleading
@@ -392,6 +417,7 @@ The most common issues relate to AWS region choices! Check environment variables
 **Root Cause**: Model access not granted in Bedrock, or wrong region
 
 **Diagnosis**:
+
 1. Which model are they trying to use?
 2. Which region is their code running in?
 3. Have they requested model access in Bedrock console?
@@ -399,6 +425,7 @@ The most common issues relate to AWS region choices! Check environment variables
 5. Are the right environment variables being set? LiteLLM needs `AWS_REGION_NAME`. Check that nothing is being hardcoded in the code, and that tfvars are set right. Add logging to confirm which region is being used.
 
 **Solution**:
+
 1. Go to Bedrock console in the correct region
 2. Click "Model access"
 3. Request access to Nova Pro
@@ -411,12 +438,14 @@ The most common issues relate to AWS region choices! Check environment variables
 **Root Cause**: `terraform.tfvars` not configured, or values from previous guides not set
 
 **Diagnosis**:
+
 1. Does `terraform.tfvars` exist in this directory?
 2. Are all required variables set (check `terraform.tfvars.example`)?
 3. For later guides: Do they have output values from earlier guides?
 4. Run `terraform output` in previous directories to get required ARNs
 
 **Solution**:
+
 1. Copy `terraform.tfvars.example` to `terraform.tfvars`
 2. Fill in all required values
 3. Get ARNs from previous terraform outputs: `cd terraform/X_previous && terraform output`
@@ -429,12 +458,14 @@ The most common issues relate to AWS region choices! Check environment variables
 **Root Cause**: Package not built correctly, environment variables missing, or IAM permissions
 
 **Diagnosis**:
+
 1. Check CloudWatch logs: `aws logs tail /aws/lambda/alex-{agent-name} --follow`
 2. Check Lambda environment variables in AWS Console
 3. Check IAM role has required permissions
 4. Was the Lambda package built with Docker for linux/amd64?
 
 **Solution**:
+
 1. For packaging: Re-run `package_docker.py` with Docker running
 2. For env vars: Verify in Lambda console or `terraform.tfvars`
 3. For permissions: Check IAM role policy in terraform
@@ -446,12 +477,14 @@ The most common issues relate to AWS region choices! Check environment variables
 **Root Cause**: Database not fully initialized, wrong ARNs, or Data API not enabled
 
 **Diagnosis**:
+
 1. Check cluster status: `aws rds describe-db-clusters`
 2. Verify Data API is enabled (should show `EnableHttpEndpoint: true`)
 3. Check ARNs in environment variables match actual resources
 4. Database may still be initializing (takes 10-15 minutes)
 
 **Solution**:
+
 1. Wait for cluster to reach "available" status
 2. Verify Data API is enabled in RDS console
 3. Run `terraform output` in `5_database` to get correct ARNs
@@ -464,26 +497,31 @@ The most common issues relate to AWS region choices! Check environment variables
 ### Core Services by Guide
 
 **Guides 1-2**: Foundations
+
 - IAM permissions
 - SageMaker Serverless endpoint (embeddings)
 
 **Guide 3**: Vector Storage
+
 - S3 Vectors bucket and index
 - Lambda ingest function
 - API Gateway with API key
 
 **Guide 4**: Research Agent
+
 - App Runner service (Researcher)
 - ECR repository
 - EventBridge scheduler (optional)
 
 **Guide 5**: Database
+
 - Aurora Serverless v2 PostgreSQL
 - Data API enabled
 - Secrets Manager for credentials
 - Database schema and seed data - **IMPORTANT** be sure to read the database schema
 
 **Guide 6**: Agent Orchestra (The Big One)
+
 - 5 Lambda functions: Planner, Tagger, Reporter, Charter, Retirement
 - Each lambda function is implemented using OpenAI Agents SDK with simple, idiomatic code. Review an existing implementation for details.
 - SQS queue for orchestration
@@ -491,12 +529,14 @@ The most common issues relate to AWS region choices! Check environment variables
 - Cross-service IAM permissions
 
 **Guide 7**: Frontend
+
 - NextJS static site on S3
 - CloudFront CDN
 - API Gateway + Lambda backend
 - Clerk authentication
 
 **Guide 8**: Enterprise
+
 - CloudWatch dashboards
 - Alarms and monitoring
 - LangFuse observability
@@ -515,6 +555,7 @@ User Request → SQS Queue → Planner (Orchestrator)
 ### Cost Management
 
 **Cost optimization**:
+
 - Destroy Aurora when not actively working (biggest savings)
 - Use `terraform destroy` in each directory
 - Monitor costs in AWS Cost Explorer
@@ -537,11 +578,13 @@ cd terraform/2_sagemaker && terraform destroy
 ## Key Files Students Modify
 
 ### Configuration Files
+
 - `.env` - Root environment variables (add values as guides progress)
 - `frontend/.env.local` - Frontend Clerk configuration
 - `terraform/*/terraform.tfvars` - Each terraform directory (copy from .example)
 
 ### Code Students May Need to Update
+
 - `backend/researcher/server.py` - Region and model configuration (Guide 4) - but this should come from variables and shouldn't need code changes
 - Agent templates in `backend/*/templates.py` - For customization
 - Frontend pages for UI modifications
@@ -558,10 +601,11 @@ If you're stuck:
 2. **Review error messages** - Look at CloudWatch logs, not just terminal output
 3. **Verify prerequisites** - Is Docker running? Are permissions set? Is terraform.tfvars configured?
 4. **Contact the instructor**:
-   - **Post a question in Udemy** - Include your guide number, error message, and what you've tried
-   - **Email Ed Donner**: ed@edwarddonner.com
+  - **Post a question in Udemy** - Include your guide number, error message, and what you've tried
+  - **Email Ed Donner**: [ed@edwarddonner.com](mailto:ed@edwarddonner.com)
 
 When asking for help, include:
+
 - Which guide/day you're on
 - Exact error message (copy/paste, don't paraphrase)
 - What command you ran
@@ -572,19 +616,20 @@ When asking for help, include:
 
 When helping students:
 
-0. **Prepare** - Read all the guides to be fully briefed.
-1. **Establish context** - Which guide? What's the goal?
-2. **Get error details** - Actual messages, logs, console output
-3. **Diagnose first** - Don't write code before understanding the problem
-4. **Think incrementally** - One change at a time
-5. **Verify understanding** - Explain what you think is wrong before fixing
-6. **Keep it simple** - Avoid over-engineering solutions
+1. **Prepare** - Read all the guides to be fully briefed.
+2. **Establish context** - Which guide? What's the goal?
+3. **Get error details** - Actual messages, logs, console output
+4. **Diagnose first** - Don't write code before understanding the problem
+5. **Think incrementally** - One change at a time
+6. **Verify understanding** - Explain what you think is wrong before fixing
+7. **Keep it simple** - Avoid over-engineering solutions
 
 **Remember**: Students are learning. The goal is to help them understand what went wrong and how to fix it, not just to make the error go away.
 
 ---
 
 ### Course Context
+
 - Instructor: Ed Donner
 - Platform: Udemy
 - Course: AI in Production
