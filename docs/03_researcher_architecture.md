@@ -228,3 +228,61 @@ graph LR
 - Advanced search features
 - Real-time updates
 - Analytics dashboard
+
+---
+
+## Frontend + API + agent system (Guide 7 zoom-in)
+
+This view complements the researcher/vector pipeline above by showing the **user-facing request path** (static site + authenticated API) and how it triggers the **async agent pipeline**.
+
+```mermaid
+graph TB
+  USER["User browser"] -->|HTTPS| CF["CloudFront CDN"]
+  CF -->|Static files| S3["S3 static site"]
+  CF -->|API requests| APIG["API Gateway"]
+
+  USER -->|Auth| CLERK["Clerk auth"]
+  APIG -->|JWT| API["API Lambda"]
+
+  API -->|Data API| AUR["Aurora DB"]
+  API -->|Trigger| Q["SQS queue"]
+
+  Q -->|Process| AG["AI agents"]
+  AG -->|Results| AUR
+```
+
+---
+
+## Researcher → ingest → vectors (data pipeline diagram)
+
+This is the researcher/ingest/vector loop used to build a RAG-style knowledge base.
+
+```mermaid
+graph TB
+  subgraph automation["Optional automation"]
+    EB["EventBridge schedule e.g. every 2h"]
+    SCHED["Lambda research scheduler"]
+    EB --> SCHED
+  end
+
+  subgraph research["Research"]
+    AR["App Runner alex researcher"]
+    BR["Amazon Bedrock"]
+    SCHED -->|HTTPS POST research| AR
+    AR -->|LLM| BR
+  end
+
+  subgraph ingest["Ingest and vectors"]
+    GW["API Gateway ingest endpoint plus API key"]
+    ING["Lambda alex ingest"]
+    SM["SageMaker serverless embeddings"]
+    SV["S3 Vectors"]
+    AR -->|ingest tool| GW
+    GW --> ING
+    ING -->|Embeddings| SM
+    ING -->|Write vectors| SV
+  end
+
+  ECR["ECR researcher image"]
+  AR -.->|pull image| ECR
+```

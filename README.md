@@ -18,7 +18,7 @@ Deeper narrative for the research → ingest → vectors path: **[docs/data-pipe
 
 Alex splits into three cooperating planes: the **user request path** (static UI and API into a queue), the **agent orchestra** (planner plus four specialist Lambdas on Bedrock and Aurora), and the **research and vector pipeline** (scheduled Researcher on App Runner, ingest, SageMaker embeddings, and S3 Vectors). The reference diagram below matches the course “multi-agent” view; more narrative and cost notes live in **[docs/3_architecture.md](docs/3_architecture.md)**.
 
-<img src="docs/assets/multi-agent-architecture.png" alt="Alex complete multi-agent AWS architecture: frontend, API, SQS, planner and agents, Bedrock, Aurora, scheduler, Researcher, ingest, SageMaker, and S3 Vectors" width="920" style="max-width: 100%; height: auto;" />
+<img src="docs/assets/multi-agent-architecture.png" alt="Alex complete multi-agent AWS architecture: frontend, API, SQS, planner and agents, Bedrock, Aurora, scheduler, Researcher, ingest, SageMaker, and S3 Vectors" width="552" style="max-width: 100%; height: auto;" />
 
 **Request ingestion (user-facing):** **CloudFront** serves the **Next.js** frontend from **S3**. **API Gateway** fronts the **FastAPI** **Lambda** (Guide 7). That Lambda uses **Aurora** for portfolio state and publishes agent jobs to **SQS** for asynchronous processing.
 
@@ -92,28 +92,7 @@ flowchart LR
   PL -.->|Vector context| VS
 ```
 
-The diagram below zooms in on the full deployed app in **Guide 7** (frontend + API) and how it connects to the agent system from **Guide 6**:
-
-```mermaid
-graph TB
-    User[User Browser] -->|HTTPS| CF[CloudFront CDN]
-    CF -->|Static Files| S3[S3 Static Site]
-    CF -->|/api/*| APIG[API Gateway]
-
-    User -->|Auth| Clerk[Clerk Auth]
-    APIG -->|JWT| Lambda[API Lambda]
-
-    Lambda -->|Data API| Aurora[(Aurora DB)]
-    Lambda -->|Trigger| SQS[SQS Queue]
-
-    SQS -->|Process| Agents[AI Agents]
-    Agents -->|Results| Aurora
-
-    style CF fill:#FF9900
-    style S3 fill:#569A31
-    style Lambda fill:#FF9900
-    style Clerk fill:#6C5CE7
-```
+The “Guide 7 zoom-in” diagram (frontend + API + agent wiring) now lives in **[`docs/03_researcher_architecture.md`](docs/03_researcher_architecture.md)** to keep the README focused.
 
 
 
@@ -154,39 +133,7 @@ graph TB
     style Retirement fill:#FFB6C1
 ```
 
-Optional **EventBridge** triggers a small **scheduler Lambda**, which calls **App Runner** running the **Researcher** agent. The agent uses **Bedrock** (and optional **Playwright MCP** for web research), then stores text via **API Gateway** into the **ingest Lambda**, which calls **SageMaker** for embeddings and writes to **S3 Vectors**.
-
-```mermaid
-graph TB
-  subgraph automation [Optional automation]
-    EB[EventBridge<br/>schedule e.g. every 2h]
-    SchedL[Lambda<br/>research scheduler]
-    EB --> SchedL
-  end
-
-  subgraph research [Research]
-    AR[App Runner<br/>alex-researcher]
-    BR[Amazon Bedrock]
-    SchedL -->|HTTPS POST /research| AR
-    AR --> BR
-  end
-
-  subgraph ingest [Ingest and vectors]
-    GW[API Gateway<br/>POST /ingest + API key]
-    IngestL[Lambda<br/>alex-ingest]
-    SM[SageMaker serverless<br/>embeddings]
-    SV[(S3 Vectors)]
-    AR -->|ingest tool| GW
-    GW --> IngestL
-    IngestL --> SM
-    IngestL --> SV
-  end
-
-  ECR[ECR<br/>Researcher image]
-  AR -.->|pull image| ECR
-```
-
-*(Diagram uses generic labels; resource names and regions match what you configure in Terraform and `.env`—see the guides.)*
+The detailed **researcher + ingest + vectors** diagram now lives in **[`docs/03_researcher_architecture.md`](docs/03_researcher_architecture.md)** to keep the README focused.
 
 ## Tech stack
 
