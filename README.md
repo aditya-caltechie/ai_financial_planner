@@ -238,7 +238,7 @@ You can always follow the **guides** step-by-step with `terraform apply` per dir
 ###### Focus: 
 
 - AWS Services used.
-- MLOPS - Terraform for Infra + Deployment scripts. 
+- MLOPS - [Terraform](terraform/README.md) for Infra + Deployment [scripts](scripts). 
 - Frontend development using Nodejs and React.
 - Full-stack development.
 - AI stack with AWS BedRock & SageMaker. MCP Server.
