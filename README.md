@@ -239,9 +239,9 @@ You can always follow the **guides** step-by-step with `terraform apply` per dir
 
 - AWS Services used.
 - MLOPS - [Terraform](terraform/README.md) for Infra + Deployment [scripts](scripts). 
-- Frontend development using Nodejs and React.
+- Frontend development using Nodejs and React. Static file hosting with S3 & CloudFront
 - Full-stack development.
-- AI stack with AWS BedRock & SageMaker. MCP Server.
+- AI stack with AWS [BedRock](backend/researcher/server.py) & [SageMaker](backend/ingest/ingest_s3vectors.py). [MCP Server](backend/researcher/mcp_servers.py).
 - CICD (Github Actions)
 - Production [Readiness](docs/09_PRODUCTION-readiness.md) (Scaling, Security, Monitoring, Observability, GuardRails)
 - EVALs - [Agentic Evals](docs/10_EVALs.md)
