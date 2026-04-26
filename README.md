@@ -239,10 +239,10 @@ You can always follow the **guides** step-by-step with `terraform apply` per dir
 
 - [AWS Services](https://github.com/aditya-caltechie/ai-financial-planner/tree/main/aws#aws-console-quick-visual-inventory) used.
 - MLOPS - [Terraform](terraform/README.md) for Infra + Deployment [scripts](scripts). 
-- Production [Readiness](docs/09_PRODUCTION-readiness.md) (Scaling, Security, Monitoring, Observability, GuardRails)
-- EVALs - [Agentic Evals](docs/10_EVALs.md)
 - Frontend development using Nodejs and React. Static file hosting with S3 & CloudFront
 - Full-stack development.
 - AI stack with AWS [BedRock](https://github.com/aditya-caltechie/ai-financial-planner/blob/f3a234d28814a8d2f6347289c34e9d5f5f20d980/backend/researcher/server.py#L57) & [SageMaker](https://github.com/aditya-caltechie/ai-financial-planner/blob/f3a234d28814a8d2f6347289c34e9d5f5f20d980/backend/ingest/ingest_s3vectors.py#L24). [MCP Server](backend/researcher/mcp_servers.py).
+- Production [Readiness](docs/09_PRODUCTION-readiness.md) (Scaling, Security, Monitoring, Observability, GuardRails). Also [check](guides/8_enterprise.md)
+- EVALs - [Agentic Evals](docs/10_EVALs.md)
 - CICD (Github Actions)
 
