@@ -263,6 +263,12 @@ resource "aws_apigatewayv2_api" "main" {
 
 # No JWT authorizer needed - authentication is handled in Lambda like in the saas reference
 
+resource "aws_cloudwatch_log_group" "apigw_access" {
+  name              = "/aws/apigateway/${local.name_prefix}-api-gateway-access"
+  retention_in_days = 14
+  tags              = local.common_tags
+}
+
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.main.id
   name        = "$default"
@@ -272,6 +278,24 @@ resource "aws_apigatewayv2_stage" "default" {
   default_route_settings {
     throttling_burst_limit = 100
     throttling_rate_limit  = 100
+  }
+
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.apigw_access.arn
+    # Keep this JSON so it’s easy to parse/filter in CloudWatch Logs Insights
+    format = jsonencode({
+      requestId      = "$context.requestId"
+      ip             = "$context.identity.sourceIp"
+      requestTime    = "$context.requestTime"
+      httpMethod     = "$context.httpMethod"
+      path           = "$context.path"
+      routeKey       = "$context.routeKey"
+      status         = "$context.status"
+      responseLength = "$context.responseLength"
+      integrationErr = "$context.integrationErrorMessage"
+      latencyMs      = "$context.responseLatency"
+      userAgent      = "$context.identity.userAgent"
+    })
   }
 }
 

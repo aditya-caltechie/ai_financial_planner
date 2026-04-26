@@ -11,6 +11,7 @@ from datetime import datetime
 from decimal import Decimal
 import uuid
 from pathlib import Path
+import time
 
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -48,6 +49,23 @@ app = FastAPI(
     description="Backend API for AI-powered financial planning",
     version="1.0.0"
 )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Basic request logging for debugging in CloudWatch."""
+    start = time.perf_counter()
+    response = await call_next(request)
+    ms = (time.perf_counter() - start) * 1000
+    # Example: "HTTP GET /api/user 200 12.3ms"
+    logger.info(
+        "HTTP %s %s %s %.1fms",
+        request.method,
+        request.url.path,
+        response.status_code,
+        ms,
+    )
+    return response
 
 # CORS configuration
 # Get origins from CORS_ORIGINS env var (comma-separated) or fall back to localhost

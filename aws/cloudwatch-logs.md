@@ -603,3 +603,53 @@ Planner also invokes specialists:
 
 So yes: **two paths**, but they share the same DB because Aurora is the durable state store for both the UI and the agent pipeline.
 
+---
+
+## Database schema map: which table is updated by which service/call
+
+This is a practical “connect the dots” map between the **Aurora tables** (defined in `backend/database/migrations/001_schema.sql`) and the **services / API calls** that write them.
+
+### Tables at a glance
+
+- **`users`**: one row per Clerk user (`clerk_user_id` is the PK)
+- **`accounts`**: investment accounts for a user (401k / Roth / taxable, etc.)
+- **`positions`**: holdings inside an account (unique per `account_id + symbol`)
+- **`instruments`**: reference data for symbols (name/type/prices + allocation JSON)
+- **`jobs`**: async analysis jobs + agent outputs (`report_payload`, `charts_payload`, `retirement_payload`, `summary_payload`)
+
+### “Who writes what” (high-signal map)
+
+| Table | Written/updated by | When it happens | Why it exists |
+| --- | --- | --- | --- |
+| `users` | **`alex-api`** (`GET /api/user`, `PUT /api/user`) | On first sign-in (auto-create), and when user updates preferences | UI needs a DB-backed profile (targets, retirement prefs) tied to Clerk `sub` |
+| `accounts` | **`alex-api`** (`GET/POST/PUT/DELETE /api/accounts…`, `POST /api/populate-test-data`, `DELETE /api/reset-accounts`) | CRUD in **Accounts** tab, plus “Populate Test Data” | Portfolio container per user (cash balance, purpose) |
+| `positions` | **`alex-api`** (`GET /api/accounts/{id}/positions`, `POST/PUT/DELETE /api/positions…`, `POST /api/populate-test-data`) | CRUD in **Accounts** tab, plus test data | Holdings for analysis + charts (quantity per symbol) |
+| `instruments` | **DB seed scripts** (`seed_data.py`) + **`alex-api`** (creates missing symbol on `POST /api/positions`) + **Planner/market updater** (updates `current_price`) + **Tagger** (if run) | Seeded during deploy; may be extended as users add symbols; updated over time for pricing/allocations | Joins to positions for valuations + sector/region allocations; also autocomplete list |
+| `jobs` | **`alex-api`** creates job (`POST /api/analyze`) + **Planner** updates status and summary + **Reporter/Charter/Retirement** write payload fields | When user clicks “Start analysis” (Advisor Team); progresses as agents run | Durable job tracking + results store the UI can poll/read |
+
+### What each agent writes (in `jobs`)
+
+The schema intentionally uses **separate JSONB columns** so each agent can write independently:
+
+- **Planner (`alex-planner`)**
+  - updates `status`, `started_at`, `completed_at`, `error_message`
+  - writes `summary_payload` (final orchestration metadata/summary)
+- **Reporter (`alex-reporter`)**
+  - writes `report_payload` (markdown + analysis content)
+- **Charter (`alex-charter`)**
+  - writes `charts_payload` (chart JSON for UI)
+- **Retirement (`alex-retirement`)**
+  - writes `retirement_payload` (projection results)
+
+### When `alex-api` must access the DB directly (and when it doesn’t)
+
+`alex-api` accesses Aurora directly whenever the UI needs **immediate state**:
+
+- **Dashboard**: user profile + accounts + positions
+- **Accounts**: CRUD
+- **Analysis**: read job status + results payloads
+
+`alex-api` talks to **SQS** only when the user triggers background work:
+
+- **Advisor Team → Start analysis** (`POST /api/analyze`): create `jobs` row in Aurora, then enqueue SQS message for Planner.
+
