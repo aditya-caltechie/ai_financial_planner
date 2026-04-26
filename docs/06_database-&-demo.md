@@ -332,6 +332,10 @@ cd scripts
 uv sync
 uv run run_local.py
 ```
+Original landing page:
+
+<img src="./assets/local-landing-original.png" alt="Local landing page (signed out) showing the hero section and feature grid (captured for before/after comparison)" width="675" style="max-width: 100%; height: auto;" />
+
 Updated UI:
 
 **Landing page (`http://localhost:3000`) — “Market snapshot” table**
