@@ -108,8 +108,8 @@ flowchart TB
   end
 
   subgraph api_layer["API layer"]
-    GW[API Gateway (HTTP API)]
-    API[Lambda: alex-api (FastAPI)]
+    GW["API Gateway (HTTP API)"]
+    API["Lambda: alex-api (FastAPI)"]
   end
 
   subgraph state["State + async"]
