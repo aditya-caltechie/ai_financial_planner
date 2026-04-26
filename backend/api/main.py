@@ -12,12 +12,14 @@ from decimal import Decimal
 import uuid
 from pathlib import Path
 import time
+import asyncio
 
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError
 import boto3
+import httpx
 from mangum import Mangum
 from dotenv import load_dotenv
 from fastapi_clerk_auth import ClerkConfig, ClerkHTTPBearer, HTTPAuthorizationCredentials
@@ -165,12 +167,115 @@ class AnalyzeResponse(BaseModel):
     job_id: str
     message: str
 
+# Public quotes models (used by the landing page "Market snapshot" table; Polygon key stays server-side)
+class Quote(BaseModel):
+    symbol: str
+    price: Optional[float] = None
+    as_of: Optional[str] = None
+    source: str
+    detail: Optional[str] = None
+
+class QuotesResponse(BaseModel):
+    quotes: List[Quote]
+
+# Simple in-memory cache for quotes (Lambda container reuse)
+_QUOTES_CACHE: dict[str, tuple[float, Quote]] = {}
+_QUOTES_CACHE_TTL_S = float(os.getenv("QUOTES_CACHE_TTL_SECONDS", "60"))
+
 # API Routes
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+@app.get("/api/public/quotes", response_model=QuotesResponse)
+async def get_public_quotes(symbols: str = "AAPL,MSFT,SPY,NVDA"):
+    """
+    Public market snapshot for the landing page.
+
+    - Keeps Polygon API key on the server (never in frontend).
+    - Uses EOD/previous-close data (free-tier friendly) when Polygon is configured.
+    - Caches briefly to reduce cost and tail latency.
+    """
+    requested = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    requested = requested[:10]  # hard cap to keep this cheap/safe
+    if not requested:
+        return QuotesResponse(quotes=[])
+
+    now = time.time()
+
+    async def fetch_one(symbol: str) -> Quote:
+        cached = _QUOTES_CACHE.get(symbol)
+        if cached and (now - cached[0]) < _QUOTES_CACHE_TTL_S:
+            return cached[1]
+
+        polygon_key = os.getenv("POLYGON_API_KEY")
+        if not polygon_key:
+            q = Quote(
+                symbol=symbol,
+                price=None,
+                as_of=None,
+                source="none",
+                detail="POLYGON_API_KEY not configured",
+            )
+            _QUOTES_CACHE[symbol] = (now, q)
+            return q
+
+        url = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/prev"
+        params = {"adjusted": "true", "apiKey": polygon_key}
+
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(url, params=params)
+                resp.raise_for_status()
+                data = resp.json()
+
+            results = data.get("results") or []
+            if not results:
+                q = Quote(
+                    symbol=symbol,
+                    price=None,
+                    as_of=None,
+                    source="polygon",
+                    detail="No results returned",
+                )
+                _QUOTES_CACHE[symbol] = (now, q)
+                return q
+
+            # Polygon "prev" results include:
+            # - c: close price
+            # - t: timestamp in ms
+            close = results[0].get("c")
+            ts_ms = results[0].get("t")
+            as_of = None
+            if ts_ms:
+                try:
+                    as_of = datetime.fromtimestamp(ts_ms / 1000).date().isoformat()
+                except Exception:
+                    as_of = None
+
+            q = Quote(
+                symbol=symbol,
+                price=float(close) if close is not None else None,
+                as_of=as_of,
+                source="polygon",
+            )
+            _QUOTES_CACHE[symbol] = (now, q)
+            return q
+        except Exception as e:
+            q = Quote(
+                symbol=symbol,
+                price=None,
+                as_of=None,
+                source="polygon",
+                detail=str(e),
+            )
+            _QUOTES_CACHE[symbol] = (now, q)
+            return q
+
+    quotes = await asyncio.gather(*(fetch_one(s) for s in requested))
+    return QuotesResponse(quotes=quotes)
 
 @app.get("/api/user", response_model=UserResponse)
 async def get_or_create_user(
