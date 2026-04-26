@@ -163,3 +163,20 @@ Alex’s pipeline connection is intentionally narrow for Guide 2: **clients → 
 - **Terraform module:** `terraform/2_sagemaker/`
 - **Test payload example:** `backend/vectorize_me.json`
 - **Verify in AWS:** `aws sagemaker describe-endpoint --endpoint-name alex-embedding-endpoint --region <your-region>`
+
+---
+
+## Reference: course order (“order of play”)
+
+### Week 3
+
+- **Week 3 Day 3** — [1_permissions](../guides/1_permissions.md) and [2_sagemaker](../guides/2_sagemaker.md)
+- **Week 3 Day 4** — [3_ingest](../guides/3_ingest.md)
+- **Week 3 Day 5** — [4_researcher](../guides/4_researcher.md)
+
+### Week 4
+
+- **Week 4 Day 1** — [5_database](../guides/5_database.md)
+- **Week 4 Day 2** — [6_agents](../guides/6_agents.md)
+- **Week 4 Day 3** — [7_frontend](../guides/7_frontend.md)
+- **Week 4 Day 4** — [8_enterprise](../guides/8_enterprise.md)

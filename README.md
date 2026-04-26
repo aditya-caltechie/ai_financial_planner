@@ -1,12 +1,10 @@
 # Alex — Agentic Learning Equities eXplainer
 
-**Alex** is a multi-agent, production-style SaaS financial planning platform: portfolio intelligence, AI-generated research, embeddings-backed knowledge, and a Next.js + Clerk frontend. It is the **Week 3–4 capstone** for the Udemy course **AI in Production** (Ed Donner).
-
-<img src="docs/assets/alex.png" alt="Alex — course capstone" width="620" style="max-width: 100%; height: auto;" />
+**Alex** is a multi-agent, production-style SaaS financial planning platform: portfolio intelligence, AI-generated research, embeddings-backed knowledge, and a Next.js + Clerk frontend.
 
 ## Summary and purpose
 
-Students deploy Alex on **AWS** end-to-end: serverless compute (Lambda, App Runner), **Amazon Bedrock** for agent reasoning, **SageMaker** for text embeddings, **S3 Vectors** for cost-effective semantic storage, optional **EventBridge** automation, and a **Next.js** UI with **Clerk** auth. The goal is to practice real **IaC (Terraform)**, observability, and multi-agent patterns—not only notebooks.
+Deploy Alex on **AWS** end-to-end: serverless compute (Lambda, App Runner), **Amazon Bedrock** for agent reasoning, **SageMaker** for text embeddings, **S3 Vectors** for cost-effective semantic storage, optional **EventBridge** automation, and a **Next.js** UI with **Clerk** auth. The goal is to practice real **IaC (Terraform)**, observability, and multi-agent patterns—not only notebooks.
 
 **What you get out of the repo:** guided Terraform stacks (`terraform/2_sagemaker` … `terraform/8_enterprise`), Python agents under `backend/` (each directory is a **uv** project), a `frontend/` app, **`aws/`** for one-command full-stack deploy/destroy on AWS, and `scripts/` for local dev and Guide 7–scoped helpers.
 
@@ -230,26 +228,8 @@ You can always follow the **guides** step-by-step with `terraform apply` per dir
 
 ---
 
-## Order of play
+**Reference:** 
 
-### Week 3
-
-- **Week 3 Day 3** — [1_permissions](guides/1_permissions.md) and [2_sagemaker](guides/2_sagemaker.md)
-- **Week 3 Day 4** — [3_ingest](guides/3_ingest.md)
-- **Week 3 Day 5** — [4_researcher](guides/4_researcher.md)
-
-### Week 4
-
-- **Week 4 Day 1** — [5_database](guides/5_database.md)
-- **Week 4 Day 2** — [6_agents](guides/6_agents.md)
-- **Week 4 Day 3** — [7_frontend](guides/7_frontend.md)
-- **Week 4 Day 4** — [8_enterprise](guides/8_enterprise.md)
-
-**NOTE**: 
 1. Read all [docs](docs) in sequence for understanding. 
 2. Follow [guides](guides) for AWS infra setup. 
-3. Refer [backend](backend) & [frontend](frontend) code for detailed implementation. 
-
----
-
-**Reference:** [AI in Production]— capstone Weeks 3–4. For AI-assisted work in this repo, read **`gameplan.md`**, **`CLAUDE.md`**, or **`AGENTS.md`** (they point at the same project briefing).
+3. Refer [backend](backend) & [frontend](frontend) code for detailed implementation.
