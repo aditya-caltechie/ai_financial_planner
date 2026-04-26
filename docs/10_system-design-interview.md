@@ -113,7 +113,7 @@ flowchart TB
   end
 
   subgraph state["State + async"]
-    AU[(Aurora Serverless v2 Postgres\n(RDS Data API))]
+    AU[(Aurora Serverless v2 Postgres - RDS Data API)]
     Q[SQS: analysis-jobs queue]
   end
 
@@ -141,7 +141,8 @@ flowchart TB
   UI --> CF
   UI --> Auth
 
-  CF -->|/api/*| GW --> API
+  CF -->|/api/*| GW
+  GW --> API
   API --> AU
   API -->|Start analysis| Q
 
