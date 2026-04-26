@@ -14,129 +14,229 @@ This note is a **clean mental model** for evaluating LLM systems in production. 
 
 This is the “big picture” classification: you usually evaluate **multiple layers** because failures can originate in retrieval, tool use, the underlying model, production infrastructure, or policy/guardrails.
 
+Each major category below follows the same **outline** (names differ by domain):
+
+| Block | What it usually contains |
+|--------|--------------------------|
+| **Layer metrics** | Quantitative signals *native to that component* (RAG splits into **retrieval** vs **generation**; agents split into **trajectory** vs **outcome**). |
+| **Rubrics & suites** | Judge scores, adversarial prompt suites, or fixed benchmark sets—where pass/fail is partly qualitative. |
+| **How to measure** | Where labels come from (gold data, judges, logs) and what belongs in **CI** vs **offline** vs **production** monitoring. |
+
+**Same story, three stops** (every section below follows this left-to-right habit):
+
+```text
+  Layer metrics          Rubrics / suites           How to measure
+       |                        |                        |
+       v                        v                        v
+  (numbers from          (judges, attacks,        (gold labels,
+   the component)         benchmark sets)          CI vs prod logs)
+```
+
+**Where failures hide** (evaluate the layer that actually broke):
+
+```text
+        +-------------------------+
+        |   Safety / policy       |  prompt injection, PII, refusals
+        +------------+------------+
+                     |
+        +------------v------------+
+        |  Agent (tools, state)   |  trajectory + outcome metrics
+        +------------+------------+
+                     |
+        +------------v------------+
+        |  RAG (retrieve + answer)|  retrieval vs generation metrics
+        +------------+------------+
+                     |
+        +------------v------------+
+        |  Foundation model       |  benchmarks, formatting regressions
+        +------------+------------+
+                     |
+        +------------v------------+
+        |  Ops (latency, cost)    |  SLOs, queues, error budgets
+        +-------------------------+
+```
+
+---
+
 ### RAG evals (retrieval + grounding)
 
 RAG evals focus on the **knowledge layer**: did we find the right evidence, and did the model stay anchored to it?
 
-**Retrieval metrics (the search)**
+```text
+  [ User question ]
+         |
+         v
+   +-----------+   top-k    +------------------+
+   | Retriever | ----------> | chunks / passages |
+   +-----------+             +--------+---------+
+         |                            |
+  1) Retrieval metrics               | read as context
+  (recall, MRR, nDCG, ...)            v
+                               +-------------+
+                               | LLM + prompt|
+                               +------+------+
+                                      |
+                                      v
+                               +-------------+
+                               |   Answer    |
+                               +-------------+
+                                      |
+                    +--------------------+--------------------+
+                    | 2) Generation      | 3) End-to-end      |
+                    | (faithfulness,     | rubrics (judge)    |
+                    |  relevance)        |                    |
+                    +--------------------+--------------------+
+```
+
+#### 1) Retrieval metrics (the search)
 
 - **Context recall**: did retrieval surface *enough* of the relevant evidence to answer the question?
 - **Context precision**: of what was retrieved, how much was actually relevant? (noise contributes to “lost in the middle” failures)
-- **MRR (mean reciprocal rank)**: where does the *first* relevant item appear in the ranked list? (classic “best hit” ranking quality)
-- **nDCG (normalized discounted cumulative gain)**: rewards putting *multiple* relevant items high in the list, with diminishing credit deeper in the ranking—useful when users skim top‑k chunks or when several passages should be retrieved together.
+- **MRR (mean reciprocal rank)**: where does the *first* relevant item appear in the ranked list? (“best hit” ranking quality.)
+- **nDCG (normalized discounted cumulative gain)**: rewards putting *multiple* relevant items high in the list, with diminishing credit deeper in the ranking—useful when users skim top‑k chunks or several passages should be retrieved together.
 - **MAP / precision@k / recall@k** (optional): common when you fix a cutoff *k* (e.g., top 5 chunks) and care about density of good hits in that window.
 
-**When MRR vs nDCG:** use **MRR** if “any one gold passage near the top is enough”; use **nDCG** when **order and breadth** of relevant passages matter (multi-evidence questions, long contexts, reranking comparisons).
+**MRR vs nDCG (when to use which):** use **MRR** if “any one gold passage near the top is enough”; use **nDCG** when **order and breadth** of relevant passages matter (multi-evidence questions, long contexts, reranking comparisons).
 
-**Lexical signals (optional, dataset-dependent)**
+**Optional — lexical / hybrid signals (dataset-dependent):**
 
-- **Keyword coverage** (or similar): overlap between query/gold terms and retrieved text (or between gold answer and generation). Cheap and interpretable for keyword-heavy corpora; weak for paraphrase unless paired with semantic retrieval.
+- **Keyword coverage** (or similar): overlap between query/gold terms and retrieved text (or between gold answer and generation). Cheap for keyword-heavy corpora; weak alone under paraphrase unless paired with semantic retrieval.
 
-**Generation metrics (the answer)**
+#### 2) Generation metrics (the answer, given retrieved context)
 
-- **Faithfulness / groundedness**: is every substantive claim supported by retrieved context? (primary anti-hallucination check)
+- **Faithfulness / groundedness**: is every substantive claim supported by retrieved context? (Primary anti-hallucination check.)
 - **Answer relevance**: does the answer address the user’s question (even if retrieval was imperfect)?
 
-**Answer rubrics (human or LLM-as-judge)** — often reported as 1–5 scores alongside retrieval metrics:
+#### 3) End-to-end rubrics (often human or LLM-as-judge)
+
+Often reported as 1–5 scores **alongside** retrieval metrics—not a substitute for faithfulness unless definitions align.
 
 - **Accuracy** (name varies): factual correctness vs a **reference answer** or expert judgment—not the same as faithfulness unless the rubric ties claims to retrieved context.
 - **Completeness**: whether required sub-facts or checklist items are covered.
 - **Relevance**: alignment with user intent (overlaps with “answer relevance,” but is not the same as faithfulness to retrieved context).
 
-**Why retrieval can improve while an “accuracy” score drops:** reranking / richer context can surface **conflicting** passages, add **noise** that hurts the reader model, or change **what the judge rewards** (e.g., stricter citation expectations). Treat that as a signal to separate **retrieval-only** runs from **end-to-end** runs and to add **faithfulness** checks—not only ranking metrics.
+#### 4) How to measure (RAG)
 
-**How you score these (typical approaches)**
+- **Retrieval labels**: human relevance grades, gold chunk IDs, or structured ground truth for automated overlap checks.
+- **Faithfulness / answer quality**: LLM-as-judge with a strict rubric, or libraries that ship judge prompts + scores (e.g., Ragas-style workflows).
+- **Runs to compare**: separate **retrieval-only** evals from **end-to-end** (retrieve + generate) when debugging regressions.
 
-- **Retrieval scoring**: human labels, keyword/semantic overlap vs “gold” chunk IDs, or automated checks when you have structured ground truth.
-- **Faithfulness**: LLM-as-judge with strict rubric, or libraries that implement judge prompts + scoring.
-- **Answer relevance**: LLM-as-judge or task-specific rubric (finance apps often add domain constraints).
+**Why retrieval can improve while “accuracy” drops:** reranking / richer context can surface **conflicting** passages, add **noise** that hurts the reader model, or change **what the judge rewards** (e.g., stricter citation expectations). Treat that as a signal to add **faithfulness** and explicit rubric notes—not only ranking metrics.
 
 ---
+
 ### Agentic evals (reasoning + action)
 
-Agentic systems are closer to **loops** than one-shot pipelines: you evaluate planning, tool use, recovery, and end outcomes.
+Agentic systems are **loops**: planning, tool use, recovery, and side effects. Use the same mental split as RAG—**path** (what it did) vs **result** (what changed)—plus rubrics for how it *felt* to the user.
 
-Think in **two layers** (similar spirit to RAG’s retrieval vs generation):
+```text
+                    +------------------+
+         +--------->| Tools / APIs / UI |
+         |          +---------+--------+
+         |                |
+         |                v
+  +------+------+   +--------------+    observe    +-------------+
+  | Agent brain |   | Environment  |-------------->| State / DB  |
+  +------+------+   +--------------+                +-------------+
+         ^                ^
+         |                |
+         +----------------+   (loop until stop / success / budget)
 
-- **Trajectory / control layer**: *which* tools, *when*, with *what* arguments—often scored against golden traces or constraints.
-- **Outcome / world layer**: *what changed* after the run—DB rows, job status, files, API side effects, and whether the user-visible result is correct.
+  Score PATH:  tool choice, order, args, retries, step count
+  Score WORLD: job status, rows written, files, final payload schema
+  Score UX:     helpfulness, policy (often judge-based)
+```
 
-**Tool use & function calling**
+#### 1) Trajectory & control metrics (the path)
 
-- **Tool selection accuracy**: correct tool for the intent (weather tool vs calculator)
-- **Argument correctness**: right parameters + valid schema/format (exact match, fuzzy match for free text, or schema validator pass/fail)
+*Which tools, when, with what arguments, and how efficiently.*
 
-**Trajectory shape metrics** (useful when you change prompting, planner, or tool set—same role as MRR/nDCG for ranking)
+- **Tool selection accuracy**: correct tool for the intent (e.g., weather vs calculator).
+- **Argument correctness**: parameters match intent + valid schema (exact match, fuzzy match for free text, or validator pass/fail).
+- **Trajectory shape** (compare when you change planner, prompts, or tool set—like ranking metrics for ordered actions):
+  - **Strict sequence match**: full predicted chain equals gold (brittle if many valid orderings exist).
+  - **Set overlap / precision–recall on tools**: right *set* of tools regardless of order.
+  - **Prefix / “first error”**: how many initial steps were correct before the first mistake.
+  - **Recovery quality**: after a tool error, sensible backtrack/retry vs loops.
+- **Step efficiency**: solved in ~N steps vs thrashing (cost + reliability).
+- **Reasoning trace quality** (if logged): plan progresses logically vs repeating dead ends.
 
-- **Strict sequence match**: predicted tool call chain equals gold (hard; brittle when multiple valid orderings exist).
-- **Set overlap / precision–recall on tools**: did it call the *right set* of tools regardless of order? (good when order is flexible)
-- **Prefix / “first error” metrics**: how many initial steps were correct before the first mistake? (analogous to “best relevant hit early” in retrieval)
-- **Recovery quality**: after a tool error, does it backtrack, retry sensibly, or loop?
+#### 2) Outcome & state metrics (the world after the run)
 
-**Reasoning & planning**
+*What actually changed—what production cares about.*
 
-- **Step efficiency**: did it solve the task in ~N steps vs thrashing for many steps (cost + reliability)?
-- **Reasoning trace quality** (if logged): does the plan progress logically, or repeat failed approaches?
+- **Success rate**: runs that reach a correct terminal state (binary or graded).
+- **Reliability / consistency**: same task across trials—stable success vs stochastic failure.
+- **State assertions**: DB rows, job status transitions, files, API effects; payload schema checks (e.g., chart JSON).
 
-**Task completion (“bottom line”)**
+#### 3) End-to-end rubrics (human or LLM-as-judge)
 
-- **Success rate**: percent of runs that reach a correct terminal state
-- **Reliability / consistency**: repeated trials with the same task—does it succeed stably or behave stochastically?
+- **Helpfulness / clarity** of the final user-facing message (artifact can be “correct” but unusable).
+- **Policy adherence**: avoided disallowed actions (e.g., write tool without confirmation) even when output looks fine.
 
-**Outcome rubrics (human or LLM-as-judge)** — beyond pass/fail:
+#### 4) How to measure (agentic)
 
-- **Helpfulness / clarity** of the final user-facing message (may pass functionally but read poorly).
-- **Policy adherence**: did it avoid disallowed actions (e.g., calling a “write” tool without confirmation) even when the final artifact looks fine?
-
-**When trajectory metrics vs outcome metrics:** use **trajectory** scores to debug *orchestration* regressions quickly; use **outcome + state assertions** for what production actually cares about. They can diverge: **better tool accuracy** but **worse user scores** if the agent adds redundant calls, picks a valid-but-suboptimal path, exposes ugly intermediate errors, or succeeds on a *different* acceptable trajectory your rubric penalized.
-
-**How you score (typical approaches)**
-
-- **Deterministic**: golden traces, JSON-schema validation on tool args, idempotency keys, DB snapshots, workflow state machines.
-- **Probabilistic / judge**: LLM grades plan quality, explanation quality, or “did it follow house style?”—version the rubric and spot-check against humans.
-
-**Practical “golden tests” for agents**
-
-- **Golden trajectories**: for a fixed input, assert expected tool sequence (or acceptable alternatives).
-- **State assertions**: DB rows written, job status transitions, payload schema validation (e.g., chart JSON).
+- **Deterministic / CI-friendly:** golden trajectories (expected tool sequence or acceptable variants), JSON Schema on arguments, idempotency keys, DB snapshots, workflow state machines.
+- **Judge-based:** LLM grades plan quality, explanations, or style—**version** rubrics and spot-check against humans.
+- **Trajectory vs outcome:** use **trajectory** scores to debug orchestration quickly; use **outcome + state** for release gates. They can diverge—e.g., higher tool accuracy but worse user scores from redundant calls, suboptimal paths, noisy intermediate errors, or a valid trajectory your strict gold trace penalizes.
 
 ---
+
 ### Foundation / LLM evals (the “brain”)
 
-These are **model capability** evaluations *before* (or alongside) your product layer:
+Capability of the **base model** in isolation or under controlled prompts—before blaming RAG or agents.
 
-- **Knowledge benchmarks** (example family): broad multitask knowledge tests (e.g., MMLU-style suites)
-- **Reasoning / code benchmarks** (example families): math word problems, coding exercises (e.g., GSM8K-style / HumanEval-style)
+#### 1) Capability metrics
 
-**Why this matters even if you use Bedrock models:** you still need to know whether a model swap (or temperature change) regresses reasoning, compliance, or formatting.
+- **Knowledge breadth**: multitask knowledge suites (e.g., MMLU-style families).
+- **Reasoning & code**: math word problems, coding exercises (e.g., GSM8K-style / HumanEval-style families).
+
+#### 2) How to measure (foundation)
+
+- **Benchmark harnesses**: fixed prompts, temperature, and scoring scripts; compare **before/after** model ID, inference profile, or decoding settings.
+- **When it matters:** model swap, quantization, or prompt-template change—check for regressions in reasoning, compliance tone, or structured output formatting.
 
 ---
+
 ### Behavioral & safety evals (the “guardrail layer”)
 
-These evals measure **misuse resistance** and **policy compliance** in the **product/system** (prompting, tools, UX), not just raw model capability.
+**Misuse resistance** and **policy compliance** in the **product/system** (prompting, tools, UX)—not the same as raw model benchmark scores.
 
-**Common suites**
+#### 1) Attack & stress suites
 
-- **Red teaming / prompt injection**: attempt to override system instructions (“ignore previous instructions…”), exfiltrate secrets, or coerce unsafe tool calls.
-- **Toxicity / bias**: baited prompts that try to elicit harmful content; measure refusal quality + non-escalation.
-- **PII sensitivity**: does the system refuse/redact appropriately when users paste SSNs, account numbers, etc.?
+- **Red teaming / prompt injection**: override instructions, secret exfiltration, coerced unsafe tool calls.
+- **Toxicity / bias**: baited prompts; measure refusal quality and non-escalation.
+- **PII handling**: paste SSNs, account numbers, etc.—refuse, redact, or route safely.
 
-**What “good” looks like**
+#### 2) Success criteria (“what good looks like”)
 
-- **Refusal + safe alternative** (when appropriate), not just silence
-- **No secret leakage** (API keys, internal prompts, tool outputs)
-- **Stable behavior under paraphrase attacks** (same attack, different wording)
+- **Refusal + safe alternative** (when appropriate), not only silence.
+- **No secret leakage** (API keys, internal prompts, raw tool payloads).
+- **Stable behavior under paraphrase** (same attack, different wording).
+
+#### 3) How to measure (behavioral)
+
+- **Curated suites** in CI: fixed adversarial prompts + expected behaviors (refuse, deflect, escalate to human).
+- **Periodic red-team cycles** with logging and human review of failures.
 
 ---
+
 ### Operational & system evals (the “infrastructure”)
 
-These measure whether the system is healthy in production:
+Whether the system is **healthy under load** and **affordable**.
 
-- **Latency**: time-to-first-token (TTFT) where streaming applies; end-to-end turnaround for tasks
-- **Cost efficiency**: tokens / dollars per successful task (especially for agent loops)
-- **Throughput & backpressure**: queue depth / oldest message age, concurrency limits, throttles, saturation behavior
+#### 1) Performance & economics
 
-> Pair these with classic **SLOs** (p95/p99 latency, error rate, cost alarms) and incident-ready dashboards.
+- **Latency**: time-to-first-token (TTFT) where streaming applies; end-to-end task latency.
+- **Cost efficiency**: tokens or dollars per **successful** task (especially for agent loops).
+- **Throughput & backpressure**: queue depth, oldest-message age, concurrency limits, throttles, saturation.
+
+#### 2) Reliability & operations
+
+- **Error budgets**: HTTP/Lambda error rates, DLQ rates, partial failure modes.
+- **SLOs & alarms**: p95/p99 latency, cost alarms, incident-ready dashboards.
+
+---
 
 ### Summary table: which eval when?
 
@@ -146,6 +246,8 @@ These measure whether the system is healthy in production:
 | **RAG eval** | Factuality + grounding | Did it find the right evidence and stay faithful to it? |
 | **Agent eval** | Autonomy | Did it choose tools correctly and finish the task reliably? |
 | **System eval** | Performance + economics | Is it fast, cheap, and stable under real traffic? |
+
+---
 
 ### The “LLM-as-a-judge” trend
 
