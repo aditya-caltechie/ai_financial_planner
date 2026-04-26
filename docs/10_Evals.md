@@ -22,12 +22,28 @@ RAG evals focus on the **knowledge layer**: did we find the right evidence, and 
 
 - **Context recall**: did retrieval surface *enough* of the relevant evidence to answer the question?
 - **Context precision**: of what was retrieved, how much was actually relevant? (noise contributes to “lost in the middle” failures)
-- **MRR (mean reciprocal rank)**: was the best evidence ranked near the top?
+- **MRR (mean reciprocal rank)**: where does the *first* relevant item appear in the ranked list? (classic “best hit” ranking quality)
+- **nDCG (normalized discounted cumulative gain)**: rewards putting *multiple* relevant items high in the list, with diminishing credit deeper in the ranking—useful when users skim top‑k chunks or when several passages should be retrieved together.
+- **MAP / precision@k / recall@k** (optional): common when you fix a cutoff *k* (e.g., top 5 chunks) and care about density of good hits in that window.
+
+**When MRR vs nDCG:** use **MRR** if “any one gold passage near the top is enough”; use **nDCG** when **order and breadth** of relevant passages matter (multi-evidence questions, long contexts, reranking comparisons).
+
+**Lexical signals (optional, dataset-dependent)**
+
+- **Keyword coverage** (or similar): overlap between query/gold terms and retrieved text (or between gold answer and generation). Cheap and interpretable for keyword-heavy corpora; weak for paraphrase unless paired with semantic retrieval.
 
 **Generation metrics (the answer)**
 
 - **Faithfulness / groundedness**: is every substantive claim supported by retrieved context? (primary anti-hallucination check)
 - **Answer relevance**: does the answer address the user’s question (even if retrieval was imperfect)?
+
+**Answer rubrics (human or LLM-as-judge)** — often reported as 1–5 scores alongside retrieval metrics:
+
+- **Accuracy** (name varies): factual correctness vs a **reference answer** or expert judgment—not the same as faithfulness unless the rubric ties claims to retrieved context.
+- **Completeness**: whether required sub-facts or checklist items are covered.
+- **Relevance**: alignment with user intent (overlaps with “answer relevance,” but is not the same as faithfulness to retrieved context).
+
+**Why retrieval can improve while an “accuracy” score drops:** reranking / richer context can surface **conflicting** passages, add **noise** that hurts the reader model, or change **what the judge rewards** (e.g., stricter citation expectations). Treat that as a signal to separate **retrieval-only** runs from **end-to-end** runs and to add **faithfulness** checks—not only ranking metrics.
 
 **How you score these (typical approaches)**
 
@@ -40,10 +56,22 @@ RAG evals focus on the **knowledge layer**: did we find the right evidence, and 
 
 Agentic systems are closer to **loops** than one-shot pipelines: you evaluate planning, tool use, recovery, and end outcomes.
 
+Think in **two layers** (similar spirit to RAG’s retrieval vs generation):
+
+- **Trajectory / control layer**: *which* tools, *when*, with *what* arguments—often scored against golden traces or constraints.
+- **Outcome / world layer**: *what changed* after the run—DB rows, job status, files, API side effects, and whether the user-visible result is correct.
+
 **Tool use & function calling**
 
 - **Tool selection accuracy**: correct tool for the intent (weather tool vs calculator)
-- **Argument correctness**: right parameters + valid schema/format
+- **Argument correctness**: right parameters + valid schema/format (exact match, fuzzy match for free text, or schema validator pass/fail)
+
+**Trajectory shape metrics** (useful when you change prompting, planner, or tool set—same role as MRR/nDCG for ranking)
+
+- **Strict sequence match**: predicted tool call chain equals gold (hard; brittle when multiple valid orderings exist).
+- **Set overlap / precision–recall on tools**: did it call the *right set* of tools regardless of order? (good when order is flexible)
+- **Prefix / “first error” metrics**: how many initial steps were correct before the first mistake? (analogous to “best relevant hit early” in retrieval)
+- **Recovery quality**: after a tool error, does it backtrack, retry sensibly, or loop?
 
 **Reasoning & planning**
 
@@ -54,6 +82,18 @@ Agentic systems are closer to **loops** than one-shot pipelines: you evaluate pl
 
 - **Success rate**: percent of runs that reach a correct terminal state
 - **Reliability / consistency**: repeated trials with the same task—does it succeed stably or behave stochastically?
+
+**Outcome rubrics (human or LLM-as-judge)** — beyond pass/fail:
+
+- **Helpfulness / clarity** of the final user-facing message (may pass functionally but read poorly).
+- **Policy adherence**: did it avoid disallowed actions (e.g., calling a “write” tool without confirmation) even when the final artifact looks fine?
+
+**When trajectory metrics vs outcome metrics:** use **trajectory** scores to debug *orchestration* regressions quickly; use **outcome + state assertions** for what production actually cares about. They can diverge: **better tool accuracy** but **worse user scores** if the agent adds redundant calls, picks a valid-but-suboptimal path, exposes ugly intermediate errors, or succeeds on a *different* acceptable trajectory your rubric penalized.
+
+**How you score (typical approaches)**
+
+- **Deterministic**: golden traces, JSON-schema validation on tool args, idempotency keys, DB snapshots, workflow state machines.
+- **Probabilistic / judge**: LLM grades plan quality, explanation quality, or “did it follow house style?”—version the rubric and spot-check against humans.
 
 **Practical “golden tests” for agents**
 
