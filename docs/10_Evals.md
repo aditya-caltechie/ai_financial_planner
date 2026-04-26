@@ -390,11 +390,69 @@ Return JSON ONLY:
 
 ---
 
-## How this maps to Alex (so it’s not abstract)
+## How this maps to Alex (concrete implementation hooks)
 
-- **RAG evals**: Research → ingest → vectors; then “did retrieval help the planner/reporter answer without inventing facts?”
-- **Agentic evals**: Planner/specialists tool calls + job payload schemas + “did analysis complete?”
-- **Safety evals**: Prompt injection attempts against user-provided text fields + finance disclaimers + PII handling
+Alex is not a single chat box: **ingestion + S3 Vectors** (Guide 3), **Researcher on App Runner** (Guide 4), **Aurora + jobs** (Guide 5), and **Planner + specialist Lambdas** (Guide 6) with **FastAPI** (Guide 7). Evals attach to **those components**, not to a generic “RAG app” abstraction.
+
+---
+
+### RAG evals (where they land in *this* repo)
+
+| Piece in Alex | Code / entry points | What to measure |
+|---------------|---------------------|-----------------|
+| **Vector index + search API** | Ingest/search Lambda `backend/ingest/search_s3vectors.py`; local harness `backend/ingest/test_search_s3vectors.py` | **Retrieval:** recall/precision/MRR/nDCG@k vs labeled queries (you need gold relevance labels or gold chunk keys in vector metadata). |
+| **Reporter “RAG tool”** | `get_market_insights` in `backend/reporter/agent.py` — embeds a query from portfolio **symbols**, calls `s3vectors.query_vectors` on bucket `alex-vectors-{account_id}`, index `financial-research`, **topK=3**, returns concatenated metadata `text` snippets to the model | **Retrieval:** same metrics if you log returned `vector['key']` / metadata IDs. **Generation:** faithfulness of the *final report* vs the **exact string** returned by the tool (today the tool output is not persisted separately from the report—you’d add a structured log or DB field if you want automated faithfulness without re-querying). |
+| **Researcher service** | `backend/researcher/server.py` — `POST /research` with `ResearchRequest.topic`; agent uses **MCP (Playwright)** + `ingest_financial_document` tool | **End-to-end:** quality of research memo; **ingestion** side tested via ingest pipeline. Grounding evals need either logged sources or replay of ingested docs. |
+
+**Practical workflow (recommended order):**
+
+1. **Retrieval-only (cheap):** extend `test_search_s3vectors.py` (or a new `uv` eval package) with a CSV of `(query, relevant_keys_or_metadata_ids)` and compute MRR / precision@k against live or staging index—same clients as production (`sagemaker-runtime` + `s3vectors`).
+2. **Reporter faithfulness (deeper):** either (a) extend the existing judge in `backend/reporter/judge.py` with an explicit *“every numeric claim must appear in the tool-supplied context”* rubric, and pass the **market insights tool output** into the judge payload, or (b) log `retrieved_snippets` on the job row and run an offline Ragas `faithfulness` job in CI (see earlier example in this doc)—**without** adding heavy deps to the Lambda package unless you accept larger deploy artifacts.
+3. **Regression gate:** pin a small golden set of symbols + queries after you change chunking, embedding endpoint, or `topK`.
+
+---
+
+### Agentic evals (orchestration + specialists)
+
+| Stage | Code / entry points | What to measure |
+|-------|---------------------|-----------------|
+| **Job enqueue** | `POST /api/analyze` in `backend/api/main.py` — creates a row via `db.jobs.create_job`, sends **SQS** (`SQS_QUEUE_URL`) with `job_id` | API returns `job_id`; optional load test on queue depth (ops eval). |
+| **Orchestrator** | `backend/planner/lambda_handler.py` (SQS `Records[0].body` → `run_orchestrator`); tools in `backend/planner/agent.py` — `invoke_reporter`, `invoke_charter`, `invoke_retirement` call Lambdas named by `REPORTER_FUNCTION`, `CHARTER_FUNCTION`, `RETIREMENT_FUNCTION`; **`MOCK_LAMBDAS`** for local | **Trajectory:** which tools ran and in what order (from **CloudWatch** / OpenTelemetry spans under `trace("Planner Orchestrator")`, or from Agents SDK run messages if you log them). **Golden test:** `backend/planner/test_simple.py` sets `MOCK_LAMBDAS=true` and drives `lambda_handler` with a real `job_id` from `reset_db.py`—extend assertions to expected **terminal job status** and mocked call counts if you wrap `invoke_lambda_agent`. |
+| **Tagger (pre-planner)** | `handle_missing_instruments` in `backend/planner/agent.py` — synchronous `lambda_client.invoke(TAGGER_FUNCTION, …)` | **Outcome:** instruments gain allocation fields in DB; tagger `test_simple.py` / `test_full.py` patterns. |
+| **Reporter outcome** | `backend/reporter/lambda_handler.py` — `Runner.run` then optional **`judge.evaluate`** (`backend/reporter/judge.py`), then `db.jobs.update_report` | **Outcome:** report JSON payload shape; **judge score** distribution in logs/LangFuse-style exporters if enabled. |
+| **Charter outcome** | `backend/charter/lambda_handler.py` — parses JSON with top-level **`charts`** array, persists chart dict keyed by `chart['key']` | **Schema eval:** JSON Schema or `json.loads` + required keys (`key`, chart type fields your UI expects)—good CI fixture with a frozen portfolio snapshot. |
+| **Retirement outcome** | `backend/retirement/lambda_handler.py` (same job_id pattern) | **Outcome:** stored projection fields / narrative as defined by your DB schema—assert on `test_simple` golden job. |
+
+**Practical workflow:**
+
+- **Local / CI (fast):** run `backend/*/test_simple.py` with `MOCK_LAMBDAS=true` and seeded DB (`backend/database`, `uv run reset_db.py --with-test-data`) to assert **job completion** and **DB artifacts** (report/charts) without AWS Lambdas.
+- **Deployed (realistic):** `backend/planner/test_full.py` and sibling `test_full.py` files invoke real Lambdas—use for **trajectory + latency** after infra changes.
+- **Strict tool order:** only assert order when product requires it; otherwise prefer **set-of-tools + final state** to avoid brittle tests when the planner legitimately reorders.
+
+---
+
+### Safety & policy evals (where user input actually enters)
+
+| Surface | How it reaches the model | Eval idea |
+|---------|--------------------------|-----------|
+| **Analysis trigger** | `AnalyzeRequest` in `backend/api/main.py` includes **`options: Dict[str, Any]`** — anything the frontend sends there becomes orchestration context eventually | CI: `POST /api/analyze` with `options` containing injection strings; assert **no secret leakage** in logs/report, no unintended tool payloads, job still fails safe. |
+| **Research topic** | `ResearchRequest.topic` → string in `run_research_agent` query (`backend/researcher/server.py`) | Same: malicious `topic` strings; assert refusal / no exfiltration of system prompt from HTTP responses. |
+| **Portfolio-derived strings** | Symbols and names from **user-owned** accounts/positions flow into planner/reporter **task text** (see `load_portfolio_summary` / reporter task builders) | Golden user with positions whose **names** look like attacks; assert report still follows `backend/reporter/templates.py` style and disclaimers. |
+| **Reporter quality gate** | `judge.evaluate` already scores 0–100; `lambda_handler` normalizes to 0–1 and **replaces** the user-visible report when that score is below `GUARD_AGAINST_SCORE` (0.3) — see `backend/reporter/lambda_handler.py` | Treat the judge as a **policy rubric hook**: extend `Evaluation` / instructions in `judge.py` for finance-specific rules (disclaimer present, no “guaranteed return” language), not only generic “quality.” |
+
+**Practical workflow:**
+
+- Maintain something like `evals/fixtures/adversarial.json` listing payloads for `options`, `topic`, and weird instrument names; a small `uv run` script calls the API (staging) with a test Clerk token or test user and asserts response shape plus forbidden substrings.
+- Add **PII canaries** (fake account numbers) only in **non-prod** tenants or synthetic DB rows—never real PII in repo.
+
+---
+
+### Summary: smallest “Alex-shaped” eval MVP
+
+1. **Retrieval:** script next to `test_search_s3vectors.py` with labeled queries → MRR@5.  
+2. **Agent:** extend `planner/test_simple.py` to assert **job status** + **report row exists** after run (mocked Lambdas).  
+3. **Safety:** five adversarial `options` / `topic` strings in CI against staging API.  
+4. **Reporter quality:** tune `backend/reporter/judge.py` prompts and monitor judge scores in CloudWatch (already wired in the reporter path when observability is on).
 
 ---
 
