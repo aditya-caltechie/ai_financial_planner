@@ -241,7 +241,7 @@ You can always follow the **guides** step-by-step with `terraform apply` per dir
 - MLOPS - [Terraform](terraform/README.md) for Infra + Deployment [scripts](scripts). 
 - Frontend development using Nodejs and React. Static file hosting with S3 & CloudFront
 - Full-stack development.
-- AI stack with AWS [BedRock](backend/researcher/server.py) & [SageMaker](backend/ingest/ingest_s3vectors.py). [MCP Server](backend/researcher/mcp_servers.py).
+- AI stack with AWS [BedRock](https://github.com/aditya-caltechie/ai-financial-planner/blob/f3a234d28814a8d2f6347289c34e9d5f5f20d980/backend/researcher/server.py#L57) & [SageMaker](https://github.com/aditya-caltechie/ai-financial-planner/blob/f3a234d28814a8d2f6347289c34e9d5f5f20d980/backend/ingest/ingest_s3vectors.py#L24). [MCP Server](backend/researcher/mcp_servers.py).
 - CICD (Github Actions)
 - Production [Readiness](docs/09_PRODUCTION-readiness.md) (Scaling, Security, Monitoring, Observability, GuardRails)
 - EVALs - [Agentic Evals](docs/10_EVALs.md)
