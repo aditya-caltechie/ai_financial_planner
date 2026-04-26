@@ -67,10 +67,10 @@ RAG evals focus on the **knowledge layer**: did we find the right evidence, and 
          |
          v
    +-----------+   top-k    +------------------+
-   | Retriever | ----------> | chunks / passages |
-   +-----------+             +--------+---------+
+   | Retriever | --------> | chunks / passages |
+   +-----------+            +--------+---------+
          |                            |
-  1) Retrieval metrics               | read as context
+  1) Retrieval metrics                | read as context
   (recall, MRR, nDCG, ...)            v
                                +-------------+
                                | LLM + prompt|
@@ -131,13 +131,13 @@ Agentic systems are **loops**: planning, tool use, recovery, and side effects. U
 
 ```text
                     +------------------+
-         +--------->| Tools / APIs / UI |
+         +--------->| Tools / APIs / UI|
          |          +---------+--------+
          |                |
          |                v
   +------+------+   +--------------+    observe    +-------------+
   | Agent brain |   | Environment  |-------------->| State / DB  |
-  +------+------+   +--------------+                +-------------+
+  +------+------+   +--------------+               +-------------+
          ^                ^
          |                |
          +----------------+   (loop until stop / success / budget)
