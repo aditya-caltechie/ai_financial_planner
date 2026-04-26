@@ -117,6 +117,39 @@ uv run python validate_destroy_aws.py --fail-fast
 
 ---
 
+## Troubleshooting
+
+### Analysis is “stuck” (UI shows `pending` forever)
+
+**Symptoms**
+- In the UI (e.g. `/advisor-team`), the job status stays **`pending`** and never progresses.
+
+**Most common cause**
+- The **Planner** Lambda is failing immediately with an Aurora secret permission error because **`terraform/5_database` was re-deployed** and created a **new** Secrets Manager ARN (random suffix), but **`terraform/6_agents` is still configured with the old `aurora_secret_arn`**.
+- In CloudWatch logs (`/aws/lambda/alex-planner`) you’ll typically see something like:
+  - `AccessDeniedException ... is not authorized to perform: secretsmanager:GetSecretValue on resource ...`
+
+**Fix**
+- **Preferred (automatic)**: re-run the deploy pipeline step that applies `terraform/6_agents` (it syncs to the latest Part 5 outputs):
+
+```bash
+cd aws
+uv run python deploy_all_aws.py --from-step agents --to-step agents
+```
+
+- **Manual**: update `terraform/6_agents/terraform.tfvars` with the latest Part 5 outputs and apply:
+
+```bash
+cd terraform/5_database
+terraform output -raw aurora_secret_arn
+
+cd ../6_agents
+# paste the new value into terraform.tfvars (aurora_secret_arn)
+terraform apply
+```
+
+---
+
 ## After `deploy_all_aws.py` — what you should see
 
 When the sequence includes **`part7`** (runs `scripts/deploy.py`), **`terraform/7_frontend`** outputs include:

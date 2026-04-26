@@ -73,13 +73,18 @@ def terraform_init(tf_dir: Path) -> None:
     run(["terraform", "init", "-input=false"], cwd=tf_dir)
 
 
-def terraform_apply(tf_dir: Path, extra_args: list[str] | None = None) -> None:
+def terraform_apply(
+    tf_dir: Path,
+    extra_args: list[str] | None = None,
+    *,
+    env_overrides: dict[str, str] | None = None,
+) -> None:
     require_tfvars(tf_dir)
     terraform_init(tf_dir)
     cmd = ["terraform", "apply", "-input=false", "-auto-approve"]
     if extra_args:
         cmd.extend(extra_args)
-    run(cmd, cwd=tf_dir)
+    run(cmd, cwd=tf_dir, env_overrides=env_overrides)
     print_terraform_outputs(tf_dir)
 
 

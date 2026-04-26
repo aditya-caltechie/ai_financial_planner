@@ -251,3 +251,13 @@ uv run python deploy_all_aws.py --from-step db-migrate --to-step enterprise
   - **start / end timestamps**
   - **per-step durations** and **total duration**
 
+### What `deploy_all_aws.py` will do now
+
+Because `researcher-image` runs `backend/researcher/deploy.py`, and we updated that script:
+
+- If `alex-researcher` is **PAUSED** → it will **resume** to **RUNNING** and will **not** build/push/update anything.
+- If it’s already **RUNNING** → it will **skip** build/push/update and just **print the URL**.
+- Only if the service is **missing** → it will do the normal **Docker build + ECR push** (and then `researcher-full` creates/updates infra).
+
+So the “wired network for pushing image to ECR” concern only applies when the service is missing (or if you intentionally want to redeploy a new image).
+

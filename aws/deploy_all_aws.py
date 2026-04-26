@@ -171,7 +171,15 @@ def step_db_migrate() -> None:
 def step_agents() -> None:
     _step_banner("STEP 8 — Agent Lambdas + SQS (package + terraform/6_agents)")
     run(["uv", "run", "package_docker.py"], cwd=REPO_ROOT / "backend")
-    terraform_apply(REPO_ROOT / "terraform" / "6_agents")
+    # Keep 6_agents aligned with the latest Part 5 secret ARN.
+    # Aurora secrets are random-suffixed and change on re-deploy; stale tfvars will break agent DB access.
+    db_env = _get_database_env_from_tf()
+    tf_env: dict[str, str] = {}
+    if db_env.get("AURORA_CLUSTER_ARN"):
+        tf_env["TF_VAR_aurora_cluster_arn"] = db_env["AURORA_CLUSTER_ARN"]
+    if db_env.get("AURORA_SECRET_ARN"):
+        tf_env["TF_VAR_aurora_secret_arn"] = db_env["AURORA_SECRET_ARN"]
+    terraform_apply(REPO_ROOT / "terraform" / "6_agents", env_overrides=tf_env or None)
 
 
 def step_agents_refresh() -> None:
