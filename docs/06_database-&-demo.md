@@ -88,14 +88,14 @@ Screenshots (Network tab) showing the endpoints being called and how they map to
   - **Browser calls** (typical): `GET /api/user`, `GET /api/accounts` (and positions per account)
   - **AWS path**: CloudFront → API Gateway → **`alex-api` Lambda** → Aurora → JSON back to UI
 
-<img src="./assets/dashboard-network.png" alt="Dashboard network calls" width="900" style="max-width: 100%; height: auto;" />
+<img src="./assets/dashboard-network.png" alt="Dashboard network calls" width="675" style="max-width: 100%; height: auto;" />
 
 - **Accounts**
   - **Browser calls** (typical): `GET /api/accounts`, `GET /api/accounts/{account_id}/positions`
   - **Writes** (when you edit): `POST /api/accounts`, `POST /api/positions`, `PUT /api/positions/{id}`, `DELETE /api/positions/{id}`
   - **AWS path**: CloudFront → API Gateway → **`alex-api` Lambda** → Aurora → JSON back to UI
 
-<img src="./assets/accounts-network.png" alt="Accounts network calls" width="900" style="max-width: 100%; height: auto;" />
+<img src="./assets/accounts-network.png" alt="Accounts network calls" width="675" style="max-width: 100%; height: auto;" />
 
 ### Path B — start analysis (Aurora + SQS + multi-agent pipeline)
 
@@ -126,27 +126,27 @@ Screenshots (Network tab) showing the endpoints being called and how they map to
   - **Browser call**: `POST /api/analyze` (creates a `jobs` row in Aurora, then sends an SQS message)
   - **AWS path**: CloudFront → API Gateway → **`alex-api` Lambda** → Aurora + SQS → **`alex-planner`** (SQS trigger)
 
-<img src="./assets/advisor-team-network.png" alt="Advisor Team network calls" width="900" style="max-width: 100%; height: auto;" />
+<img src="./assets/advisor-team-network.png" alt="Advisor Team network calls" width="675" style="max-width: 100%; height: auto;" />
 
 - **Analysis → Overview**
   - **Browser call**: `GET /api/jobs/{job_id}` (reads `jobs.*_payload` from Aurora)
   - **AWS path**: CloudFront → API Gateway → **`alex-api` Lambda** → Aurora → returns JSON for UI render
 
-<img src="./assets/analysis-overview-network.png" alt="Analysis overview network calls" width="900" style="max-width: 100%; height: auto;" />
+<img src="./assets/analysis-overview-network.png" alt="Analysis overview network calls" width="675" style="max-width: 100%; height: auto;" />
 
 - **Analysis → Charts**
   - **Browser call**: `GET /api/jobs/{job_id}` (reads `charts_payload`)
   - **AWS path**: CloudFront → API Gateway → **`alex-api` Lambda** → Aurora
   - **Who populated it**: **`alex-charter` Lambda** writes `jobs.charts_payload` during analysis
 
-<img src="./assets/analysis-charts-network.png" alt="Analysis charts network calls" width="900" style="max-width: 100%; height: auto;" />
+<img src="./assets/analysis-charts-network.png" alt="Analysis charts network calls" width="675" style="max-width: 100%; height: auto;" />
 
 - **Analysis → Retirement Projection**
   - **Browser call**: `GET /api/jobs/{job_id}` (reads `retirement_payload`)
   - **AWS path**: CloudFront → API Gateway → **`alex-api` Lambda** → Aurora
   - **Who populated it**: **`alex-retirement` Lambda** writes `jobs.retirement_payload` during analysis
 
-<img src="./assets/analysis-retirement-network.png" alt="Analysis retirement network calls" width="900" style="max-width: 100%; height: auto;" />
+<img src="./assets/analysis-retirement-network.png" alt="Analysis retirement network calls" width="675" style="max-width: 100%; height: auto;" />
 
 Why SQS is needed here:
 - AI analysis is **long-running** (tens of seconds to minutes) and can involve multiple Lambdas.
