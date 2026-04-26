@@ -237,7 +237,7 @@ You can always follow the **guides** step-by-step with `terraform apply` per dir
 
 ###### Focus: 
 
-- AWS Services used.
+- [AWS Services](https://github.com/aditya-caltechie/ai-financial-planner/tree/main/aws#aws-console-quick-visual-inventory) used.
 - MLOPS - [Terraform](terraform/README.md) for Infra + Deployment [scripts](scripts). 
 - Frontend development using Nodejs and React. Static file hosting with S3 & CloudFront
 - Full-stack development.
