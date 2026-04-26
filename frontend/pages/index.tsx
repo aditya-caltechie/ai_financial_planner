@@ -73,12 +73,12 @@ export default function Home() {
       </nav>
 
       {/* Hero Section */}
-      <section className="px-8 py-20">
+      <section className="px-8 pt-12 pb-10 sm:pt-14 sm:pb-12">
         <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-5xl font-bold text-dark mb-6">
+          <h1 className="text-4xl sm:text-5xl font-bold text-dark mb-4 sm:mb-5">
             Your AI-Powered Financial Future
           </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+          <p className="text-lg sm:text-xl text-gray-600 mb-6 max-w-3xl mx-auto leading-relaxed">
             Experience the power of autonomous AI agents working together to analyze your portfolio, 
             plan your retirement, and optimize your investments.
           </p>
@@ -102,17 +102,17 @@ export default function Home() {
       </section>
 
       {/* Market snapshot (landing page stock price table) */}
-      <section className="px-8 pb-10">
+      <section className="px-8 pb-8">
         <div className="max-w-4xl mx-auto overflow-hidden rounded-3xl border border-gray-200/70 bg-white shadow-lg ring-1 ring-black/5">
-          <div className="relative px-8 py-6">
+          <div className="relative px-6 py-5 sm:px-7 sm:py-5">
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-primary/10 via-ai-accent/10 to-primary/5" />
-            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="relative flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-primary ring-1 ring-primary/20">
                   Snapshot
                 </div>
-                <h2 className="mt-3 text-2xl font-bold tracking-tight text-dark">Market snapshot</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-600">
+                <h2 className="mt-2 text-xl sm:text-2xl font-bold tracking-tight text-dark">Market snapshot</h2>
+                <p className="mt-1.5 max-w-2xl text-sm leading-snug text-gray-600">
                   A quick look at a few tickers using <span className="font-medium text-gray-700">previous close</span> prices (may be delayed).
                 </p>
               </div>
@@ -136,9 +136,9 @@ export default function Home() {
                 <table className="w-full text-left">
                   <thead className="bg-gradient-to-b from-gray-50 to-white text-[11px] font-semibold uppercase tracking-wider text-gray-500">
                     <tr>
-                      <th className="px-6 py-4">Ticker</th>
-                      <th className="px-6 py-4 text-right">Price</th>
-                      <th className="px-6 py-4 text-right">As of</th>
+                      <th className="px-5 py-3">Ticker</th>
+                      <th className="px-5 py-3 text-right">Price</th>
+                      <th className="px-5 py-3 text-right">As of</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -146,27 +146,27 @@ export default function Home() {
                       const isLoadingRow = quotesStatus === "loading" && quotes.length === 0;
                       return (
                         <tr key={q.symbol} className="text-sm transition-colors hover:bg-gray-50/70">
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary/15 to-ai-accent/15 text-xs font-bold text-dark ring-1 ring-black/5">
+                          <td className="px-5 py-2.5">
+                            <div className="flex items-center gap-2.5">
+                              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary/15 to-ai-accent/15 text-[11px] font-bold text-dark ring-1 ring-black/5">
                                 {q.symbol.slice(0, 1)}
                               </div>
                               <div>
                                 <div className="font-semibold tracking-wide text-dark">{q.symbol}</div>
-                                <div className="text-xs text-gray-500">US equity</div>
+                                <div className="text-[11px] leading-4 text-gray-500">US equity</div>
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-right">
+                          <td className="px-5 py-2.5 text-right">
                             {typeof q.price === "number" ? (
-                              <span className="text-base font-semibold tabular-nums text-dark">${q.price.toFixed(2)}</span>
+                              <span className="text-sm sm:text-base font-semibold tabular-nums text-dark">${q.price.toFixed(2)}</span>
                             ) : isLoadingRow ? (
                               <span className="inline-block h-5 w-24 animate-pulse rounded-md bg-gray-100" />
                             ) : (
                               <span className="text-sm font-medium text-gray-400">—</span>
                             )}
                           </td>
-                          <td className="px-6 py-4 text-right text-gray-600 tabular-nums">
+                          <td className="px-5 py-2.5 text-right text-gray-600 tabular-nums text-sm">
                             {q.as_of ? (
                               <span>{q.as_of}</span>
                             ) : isLoadingRow ? (
@@ -187,29 +187,29 @@ export default function Home() {
       </section>
 
       {/* Features Section */}
-      <section className="px-8 py-20 bg-white">
+      <section className="px-8 py-14 sm:py-16 bg-white">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-dark mb-12">
+          <h2 className="text-3xl font-bold text-center text-dark mb-10">
             Meet Your AI Advisory Team
           </h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="text-center p-6 rounded-xl hover:shadow-lg transition-shadow">
-              <div className="text-4xl mb-4">🎯</div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-7">
+            <div className="text-center p-5 rounded-xl hover:shadow-lg transition-shadow">
+              <div className="text-4xl mb-3">🎯</div>
               <h3 className="text-xl font-semibold text-ai-accent mb-2">Financial Planner</h3>
               <p className="text-gray-600">Coordinates your complete financial analysis with intelligent orchestration</p>
             </div>
-            <div className="text-center p-6 rounded-xl hover:shadow-lg transition-shadow">
-              <div className="text-4xl mb-4">📊</div>
+            <div className="text-center p-5 rounded-xl hover:shadow-lg transition-shadow">
+              <div className="text-4xl mb-3">📊</div>
               <h3 className="text-xl font-semibold text-primary mb-2">Portfolio Analyst</h3>
               <p className="text-gray-600">Deep analysis of holdings, performance metrics, and risk assessment</p>
             </div>
-            <div className="text-center p-6 rounded-xl hover:shadow-lg transition-shadow">
-              <div className="text-4xl mb-4">📈</div>
+            <div className="text-center p-5 rounded-xl hover:shadow-lg transition-shadow">
+              <div className="text-4xl mb-3">📈</div>
               <h3 className="text-xl font-semibold text-success mb-2">Chart Specialist</h3>
               <p className="text-gray-600">Visualizes your portfolio composition with interactive charts</p>
             </div>
-            <div className="text-center p-6 rounded-xl hover:shadow-lg transition-shadow">
-              <div className="text-4xl mb-4">🎯</div>
+            <div className="text-center p-5 rounded-xl hover:shadow-lg transition-shadow">
+              <div className="text-4xl mb-3">🎯</div>
               <h3 className="text-xl font-semibold text-accent mb-2">Retirement Planner</h3>
               <p className="text-gray-600">Projects your retirement readiness with Monte Carlo simulations</p>
             </div>
