@@ -29,55 +29,66 @@ Alex splits into three cooperating planes: the **user request path** (static UI 
 ```mermaid
 flowchart TB
   subgraph ingest_path["Request path"]
-    CF[CloudFront + S3<br/>frontend]
-    GW[API Gateway]
-    API[Backend API<br/>Lambda]
-    Q[SQS queue]
-    CF --> GW
-    GW --> API
-    API --> Q
+    U["User browser"]
+    CLERK["Clerk auth"]
+    CF["CloudFront CDN"]
+    S3["S3 static site"]
+    GW["API Gateway"]
+    API["API Lambda (FastAPI)"]
+    Q["SQS analysis queue"]
+
+    U -->|HTTPS| CF
+    U -->|Auth| CLERK
+    CF -->|Static files| S3
+    CF -->|API requests| GW
+    GW -->|JWT| API
+    API -->|Data API| AU
+    API -->|Trigger| Q
   end
 
   subgraph agents["Multi-agent execution"]
-    PL[Planner<br/>Lambda]
-    TG[Tagger]
-    RP[Reporter]
-    CH[Charter]
-    RT[Retirement]
-    Q --> PL
-    PL --> TG
-    PL --> RP
-    PL --> CH
-    PL --> RT
+    PL["Planner Lambda"]
+    TG["Tagger"]
+    RP["Reporter"]
+    CH["Charter"]
+    RT["Retirement"]
+
+    Q -->|Process| PL
+    PL -->|Optional enrich| TG
+    PL -->|Narrative| RP
+    PL -->|Charts JSON| CH
+    PL -->|Projection| RT
   end
 
-  BR[(Amazon Bedrock)]
-  AU[(Aurora Serverless v2)]
+  BR["Amazon Bedrock"]
+  AU["Aurora Serverless v2"]
 
-  TG --> BR
-  RP --> BR
-  CH --> BR
-  RT --> BR
-  TG --> AU
-  RP --> AU
-  CH --> AU
-  RT --> AU
+  TG -->|LLM| BR
+  RP -->|LLM| BR
+  CH -->|LLM| BR
+  RT -->|LLM| BR
+
+  PL -->|Job status and summary| AU
+  TG -->|Instrument metadata| AU
+  RP -->|Write report payload| AU
+  CH -->|Write charts payload| AU
+  RT -->|Write retirement payload| AU
 
   subgraph research["Research and vectors"]
-    SCH[Scheduler<br/>Lambda]
-    AR[Researcher<br/>App Runner]
-    ING[Ingest<br/>Lambda]
-    SM[(SageMaker<br/>embeddings)]
-    VS[(S3 Vectors)]
-    SCH --> AR
-    AR <--> BR
-    AR --> ING
-    ING <--> SM
-    ING <--> VS
+    SCH["Scheduler Lambda"]
+    AR["Researcher (App Runner)"]
+    ING["Ingest Lambda"]
+    SM["SageMaker embeddings"]
+    VS["S3 Vectors"]
+
+    SCH -->|Trigger| AR
+    AR -->|LLM| BR
+    AR -->|Send docs| ING
+    ING -->|Embeddings| SM
+    ING -->|Write vectors| VS
   end
 
-  PL -.->|vector search / context| VS
-  API --> AU
+  PL -.->|Vector context| VS
 ```
 
 The diagram below zooms in on the full deployed app in **Guide 7** (frontend + API) and how it connects to the agent system from **Guide 6**:
