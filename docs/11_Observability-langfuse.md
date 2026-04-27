@@ -287,25 +287,6 @@ This screenshot highlights the Reporter flow: generate report → run judge → 
 
 ---
 
-### Step 7 — Lambda packaging note (why you may see this warning)
-
-![](assets/langfuse-07-packaging-warning-1.png)
-
-This is not Langfuse-specific, but it’s a common point of confusion when deploying:
-
-- `uv` may warn about **nested projects**
-- the real deployment blockers are typically Docker not running or missing env vars/permissions
-
-Treat it as informational unless it causes an actual error.
-
----
-
-### Step 8 — Same packaging warning (duplicate view)
-
-![](assets/langfuse-08-packaging-warning-2.png)
-
----
-
 ## 8) What to instrument next (practical guidance)
 
 To get the most value from Langfuse in an agentic app, you generally want:
