@@ -90,13 +90,13 @@ flowchart LR
   PL -.->|Vector context| VS
 ```
 
-The “Guide 7 zoom-in” diagram (frontend + API + agent wiring) now lives in **[`researcher_architecture.md`](docs/03_researcher_architecture.md)** to keep the README focused.
+The “Guide 7 zoom-in” diagram (frontend + API + agent wiring) now lives in **[`researcher_architecture`](docs/03_researcher_architecture.md)** to keep the README focused.
 
 
 
 ### Agent collaboration overview
 
-Portfolio analysis in **Guide 6** is orchestrated by the **Financial Planner** Lambda agent, which coordinates specialized agents and writes results to Aurora. The **Researcher** runs on its own schedule and feeds **S3 Vectors**; the planner retrieves that context during analysis. Full detail: **[docs/4_agent_architecture.md](docs/4_agent_architecture.md)**.
+Portfolio analysis in **Guide 6** is orchestrated by the **Financial Planner** Lambda agent, which coordinates specialized agents and writes results to Aurora. The **Researcher** runs on its own schedule and feeds **S3 Vectors**; the planner retrieves that context during analysis. Full detail: **[agent_architecture.md](docs/4_agent_architecture.md)**.
 
 ```mermaid
 graph TB
@@ -131,7 +131,7 @@ graph TB
     style Retirement fill:#FFB6C1
 ```
 
-The detailed **researcher + ingest + vectors** diagram now lives in **[`docs/03_researcher_architecture.md`](docs/03_researcher_architecture.md)** to keep the README focused.
+The detailed **researcher + ingest + vectors** diagram now lives in **[`researcher_architecture.md`](docs/03_researcher_architecture.md)** to keep the README focused.
 
 ## Tech stack
 
