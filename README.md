@@ -90,7 +90,7 @@ flowchart LR
   PL -.->|Vector context| VS
 ```
 
-The “Guide 7 zoom-in” diagram (frontend + API + agent wiring) now lives in **[`docs/03_researcher_architecture.md`](docs/03_researcher_architecture.md)** to keep the README focused.
+The “Guide 7 zoom-in” diagram (frontend + API + agent wiring) now lives in **[`researcher_architecture.md`](docs/03_researcher_architecture.md)** to keep the README focused.
 
 
 
