@@ -10,13 +10,13 @@ Deploy Alex on **AWS** end-to-end: serverless compute (Lambda, App Runner), **Am
 
 **What you get out of the repo:** guided Terraform stacks (`terraform/2_sagemaker` … `terraform/8_enterprise`), Python agents under `backend/` (each directory is a **uv** project), a `frontend/` app, **`aws/`** for one-command full-stack deploy/destroy on AWS, and `scripts/` for local dev and Guide 7–scoped helpers.
 
-Deeper narrative for the research → ingest → vectors path: **[docs/data-pipeline.md](docs/data-pipeline.md)**. Full architecture notes (components, costs, flows): **[docs/3_architecture.md](docs/3_architecture.md)**.
+Deeper narrative for the research → ingest → vectors path: **[data-pipeline](docs/data-pipeline.md)**. Full architecture notes (components, costs, flows): **[architecture](docs/3_architecture.md)**.
 
 ## Architecture (high level)
 
 ### Complete multi-agent AWS architecture
 
-Alex splits into three cooperating planes: the **user request path** (static UI and API into a queue), the **agent orchestra** (planner plus four specialist Lambdas on Bedrock and Aurora), and the **research and vector pipeline** (scheduled Researcher on App Runner, ingest, SageMaker embeddings, and S3 Vectors). The reference diagram below matches the course “multi-agent” view; more narrative and cost notes live in **[docs/3_architecture.md](docs/3_architecture.md)**.
+Alex splits into three cooperating planes: the **user request path** (static UI and API into a queue), the **agent orchestra** (planner plus four specialist Lambdas on Bedrock and Aurora), and the **research and vector pipeline** (scheduled Researcher on App Runner, ingest, SageMaker embeddings, and S3 Vectors). The reference diagram below matches the course “multi-agent” view; more narrative and cost notes live in **[architecture](docs/3_architecture.md)**.
 
 <img src="docs/assets/multi-agent-architecture.png" alt="Alex complete multi-agent AWS architecture: frontend, API, SQS, planner and agents, Bedrock, Aurora, scheduler, Researcher, ingest, SageMaker, and S3 Vectors" width="552" style="max-width: 100%; height: auto;" />
 
@@ -92,13 +92,13 @@ flowchart LR
   PL -.->|Vector context| VS
 ```
 
-The “Guide 7 zoom-in” diagram (frontend + API + agent wiring) now lives in **[`docs/03_researcher_architecture.md`](docs/03_researcher_architecture.md)** to keep the README focused.
+The “Guide 7 zoom-in” diagram (frontend + API + agent wiring) now lives in **[`researcher_architecture`](docs/03_researcher_architecture.md)** to keep the README focused.
 
 
 
 ### Agent collaboration overview
 
-Portfolio analysis in **Guide 6** is orchestrated by the **Financial Planner** Lambda agent, which coordinates specialized agents and writes results to Aurora. The **Researcher** runs on its own schedule and feeds **S3 Vectors**; the planner retrieves that context during analysis. Full detail: **[docs/4_agent_architecture.md](docs/4_agent_architecture.md)**.
+Portfolio analysis in **Guide 6** is orchestrated by the **Financial Planner** Lambda agent, which coordinates specialized agents and writes results to Aurora. The **Researcher** runs on its own schedule and feeds **S3 Vectors**; the planner retrieves that context during analysis. Full detail: **[agent_architecture.md](docs/4_agent_architecture.md)**.
 
 ```mermaid
 graph TB
@@ -133,7 +133,7 @@ graph TB
     style Retirement fill:#FFB6C1
 ```
 
-The detailed **researcher + ingest + vectors** diagram now lives in **[`docs/03_researcher_architecture.md`](docs/03_researcher_architecture.md)** to keep the README focused.
+The detailed **researcher + ingest + vectors** diagram now lives in **[`researcher_architecture.md`](docs/03_researcher_architecture.md)** to keep the README focused.
 
 ## Tech stack
 
@@ -244,7 +244,7 @@ You can always follow the **guides** step-by-step with `terraform apply` per dir
 - Frontend development using Nodejs and React. Static file hosting with S3 & CloudFront
 - Full-stack development.
 - AI stack with AWS [BedRock](https://github.com/aditya-caltechie/ai-financial-planner/blob/f3a234d28814a8d2f6347289c34e9d5f5f20d980/backend/researcher/server.py#L57) & [SageMaker](https://github.com/aditya-caltechie/ai-financial-planner/blob/f3a234d28814a8d2f6347289c34e9d5f5f20d980/backend/ingest/ingest_s3vectors.py#L24). [MCP Server](backend/researcher/mcp_servers.py).
-- Production [Readiness](docs/09_PRODUCTION-readiness.md) (Scaling, Security, Monitoring, Observability, GuardRails). Also [check](guides/8_enterprise.md) + [Notes]()
+- Production [Readiness](docs/09_PRODUCTION-readiness.md) (Scaling, Security, Monitoring, Observability, GuardRails). Also [check](guides/8_enterprise.md) + [Notes](https://github.com/aditya-caltechie/ai-tutorial-notes/tree/main/mlops)
 - EVALs - [Agentic Evals](docs/10_EVALs.md)
 - CICD (Github Actions)
 
