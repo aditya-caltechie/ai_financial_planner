@@ -1,5 +1,7 @@
 # Alex — Agentic Learning Equities eXplainer
 
+[![CI](https://github.com/aditya-caltechie/ai-financial-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/aditya-caltechie/ai-financial-planner/actions)
+
 **Alex** is a multi-agent, production-style SaaS financial planning platform: portfolio intelligence, AI-generated research, embeddings-backed knowledge, and a Next.js + Clerk frontend.
 
 ## Summary and purpose
