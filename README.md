@@ -3,9 +3,7 @@
 
 [![CI](https://github.com/aditya-caltechie/ai_financial_planner/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/aditya-caltechie/ai_financial_planner/actions/workflows/ci.yml)
 
-**Alex** is a production-style, multi-agent financial planning platform. It combines portfolio intelligence, AI-assisted market research, embeddings-backed retrieval, and a Next.js frontend with Clerk authentication.
-
-This repository is the capstone project for the “AI in Production” course and is designed to be deployed on AWS using Terraform.
+**Alex** is a production-style, multi-agent financial planning platform. It combines portfolio intelligence, AI-assisted market research, embeddings-backed retrieval, and a Next.js frontend with Clerk authentication, which can be deployed on AWS using Terraform.
 
 ## What’s included
 
