@@ -1,4 +1,4 @@
-# AI Financial Planner: Investment Accounts (Brokerage, Roth IRA, 401K), Portfolio Analysis, 401K Retirement Panner
+# AI Financial Planner: Investment Accounts (Brokerage, Roth IRA, 401K), Portfolio Analysis, Retirement Planner.
 
 [![CI](https://github.com/aditya-caltechie/ai_financial_planner/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/aditya-caltechie/ai_financial_planner/actions/workflows/ci.yml)
 
