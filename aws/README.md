@@ -29,67 +29,6 @@ uv run destroy_all_aws.py --yes
 uv run validate_destroy_aws.py
 ```
 
-## Architecture (high level)
-
-```mermaid
-flowchart TB
-  %% User-facing request path
-  CF["Frontend\nCloudFront distribution\nS3"] --> APIGW["API\nAPI Gateway"] --> API["Backend\nAPI\nLambda"] --> SQS["Queue\nSQS"] --> PLANNER["Planner\nLambda"]
-
-  %% Planner fans out to specialists
-  PLANNER --> TAGGER["Tagger\nLambda"]
-  PLANNER --> REPORTER["Reporter\nLambda"]
-  PLANNER --> CHARTER["Charter\nLambda"]
-  PLANNER --> RETIREMENT["Retirement\nLambda"]
-
-  %% Shared dependencies for the agent group
-  BEDROCK_LEFT["Frontier\nModel\nBedrock"]
-  AURORA["Database\nAurora\nServerless v2"]
-
-  TAGGER --> BEDROCK_LEFT
-  REPORTER --> BEDROCK_LEFT
-  CHARTER --> BEDROCK_LEFT
-  RETIREMENT --> BEDROCK_LEFT
-
-  TAGGER --> AURORA
-  REPORTER --> AURORA
-  CHARTER --> AURORA
-  RETIREMENT --> AURORA
-
-  %% Research/ingest/vector lane
-  SCHED["Scheduler\nLambda"] --> RESEARCHER["Researcher\nAppRunner"]
-  BEDROCK_RIGHT["Frontier\nModel\nBedrock"]
-  OSS_EMBED["Open-Source\nModel\nSageMaker"]
-  INGEST["Ingest\nLambda"]
-  VSTORE["Vector Store\nS3 Vectors"]
-
-  RESEARCHER <--> BEDROCK_RIGHT
-  RESEARCHER --> INGEST
-  INGEST <--> VSTORE
-  INGEST <--> OSS_EMBED
-```
-
-ASCII fallback (if Mermaid isn’t supported):
-
-```text
-Frontend (CloudFront/S3) -> API Gateway -> Backend API (Lambda) -> SQS -> Planner (Lambda)
-                                                         |
-                                                         +-> Tagger (Lambda) ----\
-                                                         +-> Reporter (Lambda) ---+-> Bedrock (Frontier Model)
-                                                         +-> Charter (Lambda) ----/
-                                                         +-> Retirement (Lambda) -/
-                                                         |
-                                                         +-> Aurora (Database, Serverless v2)
-
-Scheduler (Lambda) -> Researcher (AppRunner) <-> Bedrock (Frontier Model)
-                         |
-                         v
-                     Ingest (Lambda) <-> Vector Store (S3 Vectors)
-                         ^
-                         |
-          SageMaker (Open-Source Embedding Model)
-```
-
 ## Deploy pipeline overview
 
 `deploy_all_aws.py` is designed to be **re-runnable**. If something fails part-way through, re-run with a narrower range.
@@ -177,8 +116,4 @@ If you deployed outside your default region, pass `--region` to `validate_destro
 ## Credentials
 
 All scripts rely on your configured AWS CLI credentials (same as manual Terraform). At startup, the tool check prints `aws sts get-caller-identity` so you can confirm which identity is being used.
-
-## AWS console inventory (optional)
-
-![AWS Console - Recently visited services](assets/aws-console-recently-visited.png)
 

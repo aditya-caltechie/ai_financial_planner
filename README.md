@@ -1,5 +1,7 @@
 # Alex — Agentic Learning Equities eXplainer
 
+[![CI](https://github.com/aditya-caltechie/ai_financial_planner/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/aditya-caltechie/ai_financial_planner/actions/workflows/ci.yml)
+
 **Alex** is a production-style, multi-agent financial planning platform. It combines portfolio intelligence, AI-assisted market research, embeddings-backed retrieval, and a Next.js frontend with Clerk authentication.
 
 This repository is the capstone project for the “AI in Production” course and is designed to be deployed on AWS using Terraform.
