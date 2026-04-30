@@ -12,8 +12,7 @@
 - **Knowledge pipeline**: ingestion → embeddings → **S3 Vectors**
 - **Backend API**: FastAPI on Lambda (used by the frontend)
 - **Frontend**: Next.js (Pages Router) + Clerk
-- **Infrastructure as Code**: independent Terraform stacks (`terraform/2_sagemaker` … `terraform/8_enterprise`)
-
+- **Infrastructure as Code**: independent Terraform stacks 
 ## Tech stack
 
 | Area | Technologies |
